@@ -169,15 +169,66 @@ export class BinanceAPI {
    */
   static async getTicker(symbol: string): Promise<BinanceTicker> {
     const normalizedSymbol = this.normalizeSymbol(symbol);
-    const response = await fetch(
-      `${this.BASE_URL}/ticker?symbol=${normalizedSymbol}`,
-    );
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch ticker: ${response.statusText}`);
+    // 재시도 로직 추가
+    let lastError: Error | null = null;
+    const maxRetries = 3;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(
+          `Attempting to fetch ticker (attempt ${attempt}/${maxRetries}):`,
+          normalizedSymbol,
+        );
+
+        const response = await fetch(
+          `${this.BASE_URL}/ticker?symbol=${normalizedSymbol}`,
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            // 타임아웃 설정
+            signal: AbortSignal.timeout(10000), // 10초 타임아웃
+          },
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(
+            `Ticker fetch failed (attempt ${attempt}):`,
+            response.status,
+            errorText,
+          );
+          throw new Error(
+            `Failed to fetch ticker: ${response.status} ${errorText}`,
+          );
+        }
+
+        const data = await response.json();
+        console.log(`Successfully fetched ticker data (attempt ${attempt}):`, {
+          symbol: normalizedSymbol,
+          price: data.lastPrice,
+        });
+        return data;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error('Unknown error');
+        console.error(
+          `Ticker fetch error (attempt ${attempt}/${maxRetries}):`,
+          lastError.message,
+        );
+
+        // 마지막 시도가 아니면 잠시 대기 후 재시도
+        if (attempt < maxRetries) {
+          const delay = attempt * 1000; // 1초, 2초, 3초 대기
+          console.log(`Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
     }
 
-    return response.json();
+    // 모든 재시도가 실패한 경우
+    throw lastError || new Error('Failed to fetch ticker after all retries');
   }
 
   /**
@@ -189,40 +240,97 @@ export class BinanceAPI {
     interval: string = '1d',
     limit: number = 100,
   ): Promise<CandleData[]> {
-    try {
-      const normalizedSymbol = this.normalizeSymbol(symbol);
-      console.log(
-        `Fetching klines: ${normalizedSymbol}, ${interval}, ${limit}`,
-      );
+    const normalizedSymbol = this.normalizeSymbol(symbol);
 
-      // API 호출
-      const response = await fetch(
-        `${this.BASE_URL}/klines?symbol=${normalizedSymbol}&interval=${interval}&limit=${limit}`,
-      );
+    // 재시도 로직 추가
+    let lastError: Error | null = null;
+    const maxRetries = 3;
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Klines fetch error:', response.status, errorText);
-        throw new Error(`HTTP error! status: ${response.status}`);
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(
+          `Fetching klines (attempt ${attempt}/${maxRetries}): ${normalizedSymbol}, ${interval}, ${limit}`,
+        );
+
+        // API 호출
+        const response = await fetch(
+          `${this.BASE_URL}/klines?symbol=${normalizedSymbol}&interval=${interval}&limit=${limit}`,
+          {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            // 타임아웃 설정
+            signal: AbortSignal.timeout(15000), // 15초 타임아웃 (klines는 더 큰 데이터)
+          },
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(
+            `Klines fetch failed (attempt ${attempt}):`,
+            response.status,
+            errorText,
+          );
+          throw new Error(
+            `HTTP error! status: ${response.status}, message: ${errorText}`,
+          );
+        }
+
+        // 바이낸스에서 받은 배열 데이터를 파싱
+        const data: number[][] = await response.json();
+        console.log(
+          `Received ${data.length} klines for ${normalizedSymbol} (attempt ${attempt})`,
+        );
+
+        // 데이터 유효성 검사
+        if (!Array.isArray(data) || data.length === 0) {
+          throw new Error('Invalid or empty klines data received');
+        }
+
+        // 바이낸스 형식을 차트에서 사용할 형식으로 변환
+        const candleData = data.map(kline => {
+          // 데이터 유효성 검사
+          if (!Array.isArray(kline) || kline.length < 6) {
+            throw new Error('Invalid kline data format');
+          }
+
+          return {
+            time: this.formatTime(kline[0], interval), // 시간
+            open: parseFloat(kline[1].toString()), // 시가
+            high: parseFloat(kline[2].toString()), // 고가
+            low: parseFloat(kline[3].toString()), // 저가
+            close: parseFloat(kline[4].toString()), // 종가
+            volume: parseFloat(kline[5].toString()), // 거래량
+          };
+        });
+
+        console.log(
+          `Successfully processed ${candleData.length} candles for ${normalizedSymbol}`,
+        );
+        return candleData;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error('Unknown error');
+        console.error(
+          `Klines fetch error (attempt ${attempt}/${maxRetries}):`,
+          lastError.message,
+        );
+
+        // 마지막 시도가 아니면 잠시 대기 후 재시도
+        if (attempt < maxRetries) {
+          const delay = attempt * 1500; // 1.5초, 3초, 4.5초 대기
+          console.log(`Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
       }
-
-      // 바이낸스에서 받은 배열 데이터를 파싱
-      const data: number[][] = await response.json();
-      console.log(`Received ${data.length} klines for ${normalizedSymbol}`);
-
-      // 바이낸스 형식을 차트에서 사용할 형식으로 변환
-      return data.map(kline => ({
-        time: this.formatTime(kline[0], interval), // 시간
-        open: parseFloat(kline[1].toString()), // 시가
-        high: parseFloat(kline[2].toString()), // 고가
-        low: parseFloat(kline[3].toString()), // 저가
-        close: parseFloat(kline[4].toString()), // 종가
-        volume: parseFloat(kline[5].toString()), // 거래량
-      }));
-    } catch (error) {
-      console.error('캔들스틱 데이터 가져오기 실패:', error);
-      throw error; // 에러를 다시 던져서 상위에서 처리할 수 있도록
     }
+
+    // 모든 재시도가 실패한 경우
+    console.error(
+      '캔들스틱 데이터 가져오기 실패 (모든 재시도 완료):',
+      lastError?.message,
+    );
+    throw lastError || new Error('Failed to fetch klines after all retries');
   }
 
   /**

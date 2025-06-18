@@ -1,8 +1,3 @@
-/**
- * 암호화폐 차트 컴포넌트
- * TradingView의 Lightweight Charts 라이브러리를 사용하여 실시간 암호화폐 차트를 표시합니다.
- * 캔들스틱, 라인 차트, 거래량 등을 지원하며 반응형 디자인을 적용했습니다.
- */
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -17,6 +12,15 @@ import {
 } from 'lightweight-charts';
 import { BinanceAPI } from '@/lib/binance-api';
 import { useTheme } from '@/contexts/theme-context';
+import {
+  RefreshCw,
+  TrendingDown,
+  TrendingUp,
+  BarChart,
+  LineChart,
+  CheckSquare,
+  Square,
+} from 'lucide-react';
 
 // 컴포넌트 Props 타입 정의
 interface CryptoChartProps {
@@ -76,18 +80,21 @@ export default function CryptoChart({
   const [timeInterval, setTimeInterval] = useState<TimeInterval>('1d'); // 현재 시간 간격
   const [chartType, setChartType] = useState<ChartType>('candlestick'); // 차트 타입
   const [showVolume, setShowVolume] = useState(true); // 거래량 표시 여부
-  const [dataLimit, setDataLimit] = useState(100); // 가져올 데이터 개수
+  const [dataLimit] = useState(200); // 가져올 데이터 개수
 
   // 실시간 가격 정보 상태
   const [currentPrice, setCurrentPrice] = useState<number>(0); // 현재 가격
   const [priceChange, setPriceChange] = useState<number>(0); // 24시간 가격 변동
   const [priceChangePercent, setPriceChangePercent] = useState<number>(0); // 24시간 가격 변동률
   const [volume24h, setVolume24h] = useState<number>(0); // 24시간 거래량
+  const [high24h, setHigh24h] = useState<number>(0); // 24시간 고가
+  const [low24h, setLow24h] = useState<number>(0); // 24시간 저가
 
   // UI 상태
   const [isLoading, setIsLoading] = useState(true); // 로딩 상태
   const [isUpdating, setIsUpdating] = useState(false); // 업데이트 중 상태
   const [chartInitialized, setChartInitialized] = useState(false); // 차트 초기화 완료 여부
+  const [error, setError] = useState<string | null>(null); // 에러 상태
 
   /**
    * 화면 크기에 따른 반응형 높이 계산
@@ -169,8 +176,7 @@ export default function CryptoChart({
       timeScale: {
         borderColor: borderColor,
         timeVisible: true,
-        secondsVisible:
-          timeInterval.includes('m') || timeInterval.includes('h'), // 분/시간 단위일 때만 초 표시
+        secondsVisible: timeInterval.includes('m') || timeInterval.includes('h'), // 분/시간 단위일 때만 초 표시
         rightOffset: 12,
         barSpacing: 3,
         fixLeftEdge: false,
@@ -187,17 +193,17 @@ export default function CryptoChart({
     if (chartType === 'candlestick') {
       // 캔들스틱 차트 (한국식 색상: 빨간색=상승, 파란색=하락)
       const candlestickSeries = chart.addSeries(CandlestickSeries, {
-        upColor: '#dc2626', // 상승 캔들 색상 (빨간색)
-        downColor: '#2563eb', // 하락 캔들 색상 (파란색)
+        upColor: '#ef4444', // 상승 캔들 색상 (빨간색)
+        downColor: '#3b82f6', // 하락 캔들 색상 (파란색)
         borderVisible: false,
-        wickUpColor: '#dc2626', // 상승 꼬리 색상
-        wickDownColor: '#2563eb', // 하락 꼬리 색상
+        wickUpColor: '#ef4444', // 상승 꼬리 색상
+        wickDownColor: '#3b82f6', // 하락 꼬리 색상
       });
       candlestickSeriesRef.current = candlestickSeries;
     } else {
       // 라인 차트
       const lineSeries = chart.addSeries(LineSeries, {
-        color: '#2563eb',
+        color: '#3b82f6',
         lineWidth: 2,
       });
       lineSeriesRef.current = lineSeries;
@@ -206,7 +212,7 @@ export default function CryptoChart({
     // 거래량 시리즈 추가 (옵션)
     if (showVolume) {
       const volumeSeries = chart.addSeries(HistogramSeries, {
-        color: isDark ? '#64748b' : '#9ca3af',
+        color: isDark ? '#475569' : '#d1d5db',
         priceFormat: {
           type: 'volume', // 거래량 형식
         },
@@ -287,6 +293,8 @@ export default function CryptoChart({
           setPriceChange(parseFloat(ticker.priceChange));
           setPriceChangePercent(parseFloat(ticker.priceChangePercent));
           setVolume24h(parseFloat(ticker.volume));
+          setHigh24h(parseFloat(ticker.highPrice));
+          setLow24h(parseFloat(ticker.lowPrice));
         }
       } catch (error) {
         console.error('Real-time data update error:', error);
@@ -311,6 +319,7 @@ export default function CryptoChart({
   const loadInitialData = async () => {
     try {
       setIsLoading(true);
+      setError(null); // 에러 상태 초기화
 
       console.log(
         'Loading initial data for symbol:',
@@ -321,6 +330,9 @@ export default function CryptoChart({
         dataLimit,
       );
 
+      let tickerSuccess = false;
+      let candleSuccess = false;
+
       // 1. 티커 정보 가져오기 (현재 가격, 변동률 등)
       try {
         const ticker = await BinanceAPI.getTicker(symbol);
@@ -330,18 +342,18 @@ export default function CryptoChart({
           setPriceChange(parseFloat(ticker.priceChange));
           setPriceChangePercent(parseFloat(ticker.priceChangePercent));
           setVolume24h(parseFloat(ticker.volume));
+          setHigh24h(parseFloat(ticker.highPrice));
+          setLow24h(parseFloat(ticker.lowPrice));
+          tickerSuccess = true;
         }
       } catch (tickerError) {
         console.error('Ticker fetch error:', tickerError);
+        // 티커 에러는 치명적이지 않으므로 계속 진행
       }
 
       // 2. 캔들스틱 데이터 가져오기
       try {
-        const candleData = await BinanceAPI.getKlines(
-          symbol,
-          timeInterval,
-          dataLimit,
-        );
+        const candleData = await BinanceAPI.getKlines(symbol, timeInterval, dataLimit);
         console.log(
           'Candle data received:',
           candleData.length,
@@ -365,52 +377,34 @@ export default function CryptoChart({
 
           // 시간 데이터 검증
           const timeFormat = candleData[0].time;
-          console.log(
-            'Using time format:',
-            timeFormat,
-            'for interval:',
-            timeInterval,
-          );
+          console.log('Using time format:', timeFormat, 'for interval:', timeInterval);
 
           // 캔들스틱 차트 데이터 설정
           if (chartType === 'candlestick' && candlestickSeriesRef.current) {
             try {
               console.log('Setting candlestick data for', timeInterval);
-              const formattedCandleData = candleData.map(candle => ({
+              const formattedCandleData = candleData.map((candle) => ({
                 ...candle,
                 time: candle.time as Time,
               }));
               candlestickSeriesRef.current.setData(formattedCandleData);
-              console.log(
-                'Candlestick data set successfully for',
-                timeInterval,
-              );
+              console.log('Candlestick data set successfully for', timeInterval);
             } catch (error) {
-              console.error(
-                'Failed to set candlestick data for',
-                timeInterval,
-                ':',
-                error,
-              );
+              console.error('Failed to set candlestick data for', timeInterval, ':', error);
             }
           }
           // 라인 차트 데이터 설정
           else if (chartType === 'line' && lineSeriesRef.current) {
             try {
               console.log('Setting line data for', timeInterval);
-              const lineData = candleData.map(candle => ({
+              const lineData = candleData.map((candle) => ({
                 time: candle.time as Time,
                 value: candle.close, // 종가만 사용
               }));
               lineSeriesRef.current.setData(lineData);
               console.log('Line data set successfully for', timeInterval);
             } catch (error) {
-              console.error(
-                'Failed to set line data for',
-                timeInterval,
-                ':',
-                error,
-              );
+              console.error('Failed to set line data for', timeInterval, ':', error);
             }
           }
 
@@ -418,40 +412,52 @@ export default function CryptoChart({
           if (showVolume && volumeSeriesRef.current) {
             try {
               console.log('Setting volume data for', timeInterval);
-              const volumeData = candleData.map(candle => ({
+              const volumeData = candleData.map((candle) => ({
                 time: candle.time as Time,
                 value: candle.volume || 0,
                 // 상승/하락에 따른 색상 설정
-                color: candle.close >= candle.open ? '#26a69a' : '#ef5350',
+                color:
+                  candle.close >= candle.open
+                    ? 'rgba(239, 68, 68, 0.5)'
+                    : 'rgba(59, 130, 246, 0.5)',
               }));
               volumeSeriesRef.current.setData(volumeData);
               console.log('Volume data set successfully for', timeInterval);
             } catch (error) {
-              console.error(
-                'Failed to set volume data for',
-                timeInterval,
-                ':',
-                error,
-              );
+              console.error('Failed to set volume data for', timeInterval, ':', error);
             }
           }
 
           console.log('Chart data set successfully for', timeInterval);
+          candleSuccess = true;
         } else {
           console.warn('No candle data received for', timeInterval);
+          throw new Error('차트 데이터를 받지 못했습니다.');
         }
       } catch (candleError) {
-        console.error(
-          'Candle data fetch error for',
-          timeInterval,
-          ':',
-          candleError,
+        console.error('Candle data fetch error for', timeInterval, ':', candleError);
+        setError(
+          candleError instanceof Error
+            ? `차트 데이터 로드 실패: ${candleError.message}`
+            : '차트 데이터를 불러올 수 없습니다.',
         );
+      }
+
+      // 성공 여부에 따른 처리
+      if (!tickerSuccess && !candleSuccess) {
+        setError('데이터를 불러올 수 없습니다. 잠시 후 다시 시도해주세요.');
+      } else if (!candleSuccess) {
+        setError('차트 데이터를 불러올 수 없지만 가격 정보는 표시됩니다.');
       }
 
       setIsLoading(false);
     } catch (error) {
       console.error('전체 데이터 로드 실패:', error);
+      setError(
+        error instanceof Error
+          ? `데이터 로드 실패: ${error.message}`
+          : '알 수 없는 오류가 발생했습니다.',
+      );
       setIsLoading(false);
     }
   };
@@ -481,8 +487,6 @@ export default function CryptoChart({
     }
     return volume.toFixed(2);
   };
-
-  // === 이벤트 핸들러들 ===
 
   /**
    * 심볼 변경 핸들러
@@ -516,22 +520,12 @@ export default function CryptoChart({
   };
 
   /**
-   * 데이터 개수 변경 핸들러
-   */
-  const handleDataLimitChange = (newLimit: number) => {
-    if (isUpdating || newLimit === dataLimit) return;
-    console.log('Data limit changed to:', newLimit);
-    setDataLimit(newLimit);
-  };
-
-  /**
    * 거래량 표시 토글 핸들러
    */
-  const handleVolumeToggle = (show: boolean) => {
-    if (isUpdating || show === showVolume) return;
-    console.log('Volume display toggled:', show);
+  const handleVolumeToggle = () => {
+    if (isUpdating) return;
     setIsUpdating(true);
-    setShowVolume(show);
+    setShowVolume(!showVolume);
     setTimeout(() => setIsUpdating(false), 200);
   };
 
@@ -539,265 +533,133 @@ export default function CryptoChart({
   return (
     <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
       {/* 상단 정보 패널 */}
-      <div className="border-b border-border p-3 sm:p-4 lg:p-6">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-4 lg:mb-6 space-y-4 lg:space-y-0">
-          <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
-            {/* 심볼 선택 드롭다운 */}
-            <div className="relative">
-              <select
-                value={symbol}
-                onChange={e => handleSymbolChange(e.target.value)}
-                className="appearance-none bg-accent border border-border rounded-xl px-3 py-2 pr-8 text-base sm:text-lg font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent w-full sm:w-auto min-w-[140px]"
-              >
-                {POPULAR_SYMBOLS.map(sym => (
-                  <option key={sym} value={sym}>
-                    {sym.replace('USDT', '/USDT')} {/* 표시용 형식 변환 */}
-                  </option>
-                ))}
-              </select>
-              {/* 드롭다운 화살표 아이콘 */}
-              <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-                <svg
-                  className="w-4 h-4 text-muted-foreground"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+      <div className="border-b border-border p-4">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <select
+              value={symbol}
+              onChange={(e) => handleSymbolChange(e.target.value)}
+              className="appearance-none bg-accent border border-border rounded-xl px-3 py-2 pr-8 text-lg font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              {POPULAR_SYMBOLS.map((sym) => (
+                <option key={sym} value={sym}>
+                  {sym.replace('USDT', '/USDT')}
+                </option>
+              ))}
+            </select>
+
+            <div>
+              <div className="text-3xl font-bold text-foreground">{formatPrice(currentPrice)}</div>
+              <div className="flex items-center space-x-2 mt-1">
+                <span
+                  className={`flex items-center text-sm font-medium ${
+                    priceChange >= 0 ? 'text-red-500' : 'text-blue-500'
+                  }`}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
+                  {priceChange >= 0 ? (
+                    <TrendingUp size={16} className="mr-1" />
+                  ) : (
+                    <TrendingDown size={16} className="mr-1" />
+                  )}
+                  {formatPrice(priceChange)} ({priceChangePercent.toFixed(2)}%)
+                </span>
               </div>
             </div>
-
-            {/* 가격 정보 표시 */}
-            {isLoading ? (
-              // 로딩 중 스켈레톤 UI
-              <div className="animate-pulse space-y-2">
-                <div className="h-6 sm:h-8 bg-muted rounded w-24 sm:w-32"></div>
-                <div className="h-3 sm:h-4 bg-muted rounded w-20 sm:w-24"></div>
-              </div>
-            ) : (
-              <div>
-                {/* 현재 가격 */}
-                <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground">
-                  {formatPrice(currentPrice)}
-                </div>
-                {/* 24시간 변동 정보 */}
-                <div className="flex items-center space-x-2 mt-1">
-                  <span
-                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs sm:text-sm font-medium ${
-                      priceChange >= 0
-                        ? 'bg-red-500/10 text-red-600 dark:text-red-400'
-                        : 'bg-blue-500/10 text-blue-600 dark:text-blue-400'
-                    }`}
-                  >
-                    {priceChange >= 0 ? '▲' : '▼'}{' '}
-                    {Math.abs(priceChange).toFixed(2)}
-                  </span>
-                  <span
-                    className={`text-xs sm:text-sm font-medium ${
-                      priceChange >= 0
-                        ? 'text-red-600 dark:text-red-400'
-                        : 'text-blue-600 dark:text-blue-400'
-                    }`}
-                  >
-                    {priceChangePercent >= 0 ? '+' : ''}
-                    {priceChangePercent.toFixed(2)}%
-                  </span>
-                </div>
-              </div>
-            )}
           </div>
 
-          {/* 24시간 통계 정보 */}
-          <div className="grid grid-cols-3 gap-3 sm:gap-4 lg:gap-6 text-center lg:text-right">
+          <div className="grid grid-cols-3 gap-4 text-sm text-center md:text-right">
             <div>
-              <div className="text-xs sm:text-sm text-muted-foreground">
-                24h 거래량
-              </div>
-              <div className="text-sm sm:text-base lg:text-lg font-semibold text-foreground">
-                {formatVolume(volume24h)}
-              </div>
+              <div className="text-muted-foreground">24h 거래량</div>
+              <div className="font-semibold text-foreground">{formatVolume(volume24h)}</div>
             </div>
             <div>
-              <div className="text-xs sm:text-sm text-muted-foreground">
-                24h 고가
-              </div>
-              <div className="text-sm sm:text-base lg:text-lg font-semibold text-red-600 dark:text-red-400">
-                {formatPrice(currentPrice * 1.05)} {/* 임시 계산값 */}
-              </div>
+              <div className="text-muted-foreground">24h 고가</div>
+              <div className="font-semibold text-foreground">{formatPrice(high24h)}</div>
             </div>
             <div>
-              <div className="text-xs sm:text-sm text-muted-foreground">
-                24h 저가
-              </div>
-              <div className="text-sm sm:text-base lg:text-lg font-semibold text-blue-600 dark:text-blue-400">
-                {formatPrice(currentPrice * 0.95)} {/* 임시 계산값 */}
-              </div>
+              <div className="text-muted-foreground">24h 저가</div>
+              <div className="font-semibold text-foreground">{formatPrice(low24h)}</div>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* 차트 컨트롤 영역 */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-3 lg:space-y-0">
-          <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
-            {/* 시간 간격 선택 버튼들 */}
-            <div className="flex items-center bg-accent rounded-xl p-1 overflow-x-auto">
-              <div className="flex space-x-1 min-w-max">
-                {TIME_INTERVALS.map(interval => (
-                  <button
-                    key={interval.value}
-                    onClick={() =>
-                      handleTimeIntervalChange(interval.value as TimeInterval)
-                    }
-                    className={`px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg transition-colors whitespace-nowrap ${
-                      timeInterval === interval.value
-                        ? 'bg-card text-primary shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {interval.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 차트 타입 선택 */}
-            <div className="flex items-center bg-accent rounded-xl p-1">
-              <button
-                onClick={() => handleChartTypeChange('candlestick')}
-                className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg transition-colors ${
-                  chartType === 'candlestick'
-                    ? 'bg-card text-primary shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                캔들
-              </button>
-              <button
-                onClick={() => handleChartTypeChange('line')}
-                className={`px-3 py-1.5 text-xs sm:text-sm font-medium rounded-lg transition-colors ${
-                  chartType === 'line'
-                    ? 'bg-card text-primary shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                라인
-              </button>
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
-            {/* 거래량 표시 토글 */}
-            <label className="flex items-center space-x-2 text-xs sm:text-sm text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={showVolume}
-                onChange={e => handleVolumeToggle(e.target.checked)}
-                className="w-4 h-4 text-primary bg-accent border-border rounded focus:ring-ring focus:ring-2"
-              />
-              <span>거래량</span>
-            </label>
-
-            {/* 데이터 개수 선택 */}
-            <select
-              value={dataLimit}
-              onChange={e => handleDataLimitChange(Number(e.target.value))}
-              className="bg-accent border border-border rounded-lg px-3 py-1.5 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-            >
-              <option value={50}>50개</option>
-              <option value={100}>100개</option>
-              <option value={200}>200개</option>
-              <option value={500}>500개</option>
-            </select>
-
-            {/* 새로고침 버튼 */}
+      {/* 차트 컨트롤 영역 */}
+      <div className="p-2 flex flex-wrap items-center justify-between gap-2 border-b border-border">
+        <div className="flex items-center bg-accent rounded-lg p-1">
+          {TIME_INTERVALS.map((interval) => (
             <button
-              onClick={loadInitialData}
-              disabled={isLoading}
-              className="inline-flex items-center justify-center px-3 sm:px-4 py-1.5 bg-primary hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground text-primary-foreground text-xs sm:text-sm font-medium rounded-lg transition-colors"
+              key={interval.value}
+              onClick={() => handleTimeIntervalChange(interval.value as TimeInterval)}
+              className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                timeInterval === interval.value
+                  ? 'bg-card text-primary shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
             >
-              {isLoading ? (
-                <>
-                  {/* 로딩 스피너 */}
-                  <svg
-                    className="animate-spin -ml-1 mr-2 h-4 w-4"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  <span className="hidden sm:inline">로딩중</span>
-                  <span className="sm:hidden">로딩</span>
-                </>
-              ) : (
-                <>
-                  <span className="hidden sm:inline">새로고침</span>
-                  <span className="sm:hidden">새로고침</span>
-                </>
-              )}
+              {interval.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="flex items-center bg-accent rounded-lg p-1">
+            <button
+              onClick={() => handleChartTypeChange('candlestick')}
+              className={`p-2 rounded-md ${
+                chartType === 'candlestick' ? 'bg-card text-primary' : 'text-muted-foreground'
+              }`}
+            >
+              <BarChart size={16} />
+            </button>
+            <button
+              onClick={() => handleChartTypeChange('line')}
+              className={`p-2 rounded-md ${
+                chartType === 'line' ? 'bg-card text-primary' : 'text-muted-foreground'
+              }`}
+            >
+              <LineChart size={16} />
             </button>
           </div>
+          <button
+            onClick={handleVolumeToggle}
+            className={`flex items-center gap-1.5 p-2 rounded-md ${
+              showVolume ? 'bg-accent text-primary' : 'text-muted-foreground'
+            }`}
+          >
+            {showVolume ? <CheckSquare size={16} /> : <Square size={16} />}
+            <span className="text-sm">거래량</span>
+          </button>
+          <button
+            onClick={loadInitialData}
+            disabled={isLoading}
+            className="p-2 text-muted-foreground hover:text-primary disabled:opacity-50"
+          >
+            <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
+          </button>
         </div>
       </div>
 
       {/* 차트 렌더링 영역 */}
       <div className="relative">
-        <div
-          ref={chartContainerRef}
-          className="w-full"
-          style={{
-            height: `${chartHeight}px`,
-            minHeight: '300px', // 최소 높이 보장
-          }}
-        />
-
-        {/* 로딩 오버레이 */}
-        {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-card/90">
-            <div className="flex items-center space-x-3">
-              <svg
-                className="animate-spin h-6 w-6 text-primary"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                ></circle>
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
-              </svg>
-              <span className="text-foreground font-medium text-sm sm:text-base">
-                <span className="hidden sm:inline">차트 데이터 로딩중...</span>
-                <span className="sm:hidden">로딩중...</span>
-              </span>
-            </div>
+        <div ref={chartContainerRef} className="w-full" style={{ height: `${chartHeight}px` }} />
+        {(isLoading || error) && (
+          <div className="absolute inset-0 flex items-center justify-center bg-card/80 backdrop-blur-sm">
+            {isLoading ? (
+              <div className="flex items-center space-x-2 text-muted-foreground">
+                <RefreshCw className="animate-spin" /> <span>데이터 로딩중...</span>
+              </div>
+            ) : (
+              <div className="text-center text-destructive">
+                <p>{error}</p>
+                <button
+                  onClick={loadInitialData}
+                  className="mt-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg"
+                >
+                  재시도
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

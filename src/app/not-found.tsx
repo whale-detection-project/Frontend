@@ -4,21 +4,17 @@ import Link from 'next/link';
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-accent/20 dark:from-background dark:to-accent/10">
+    <div className="min-h-screen bg-gradient-to-br from-background to-accent/20 dark:from-background dark:to-accent/10 pt-30">
       <main className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8">
         <div className="max-w-md w-full text-center">
           {/* 404 Number */}
           <div className="mb-8">
-            <h1 className="text-9xl font-bold text-muted-foreground/30 select-none">
-              404
-            </h1>
+            <h1 className="text-9xl font-bold text-muted-foreground/30 select-none">404</h1>
           </div>
 
           {/* Error Message */}
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-foreground mb-4">
-              페이지를 찾을 수 없습니다
-            </h2>
+            <h2 className="text-2xl font-bold text-foreground mb-4">페이지를 찾을 수 없습니다</h2>
             <p className="text-muted-foreground leading-relaxed">
               요청하신 페이지가 존재하지 않거나 이동되었을 수 있습니다.
               <br />
