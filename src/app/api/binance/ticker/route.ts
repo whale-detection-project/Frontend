@@ -12,11 +12,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const symbol = searchParams.get('symbol');
 
-    console.log('Ticker API called with symbol:', symbol);
-
     // 심볼 파라미터가 없으면 400 에러 반환
     if (!symbol) {
-      console.error('Symbol parameter is missing');
       return NextResponse.json(
         { error: 'Symbol parameter is required' },
         {
@@ -30,11 +27,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('Fetching ticker data from Binance API for symbol:', symbol);
-
     // 바이낸스 API에 24시간 티커 정보 요청
     const binanceUrl = `${process.env.BINANCE_API_URL}/api/v3/ticker/24hr?symbol=${symbol}`;
-    console.log('Binance API URL:', binanceUrl);
 
     const response = await fetch(binanceUrl, {
       method: 'GET',
@@ -44,22 +38,14 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    console.log('Binance API response status:', response.status);
-    console.log('Binance API response headers:', Object.fromEntries(response.headers.entries()));
-
     // API 응답이 성공적이지 않으면 에러 발생
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Binance API error response:', errorText);
       throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
     }
 
     // 응답 데이터를 JSON으로 파싱하고 클라이언트에 반환
     const data = await response.json();
-    console.log('Successfully fetched ticker data:', {
-      symbol,
-      price: data.lastPrice,
-    });
 
     return NextResponse.json(data, {
       headers: {
@@ -70,10 +56,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    // 에러 발생 시 콘솔에 로그 기록 후 500 에러 반환
-    console.error('Binance API error:', error);
-    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-
+    // 에러 발생 시 500 에러 반환
     return NextResponse.json(
       {
         error: 'Failed to fetch ticker data',

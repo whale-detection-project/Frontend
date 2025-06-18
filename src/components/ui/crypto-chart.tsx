@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -137,7 +138,7 @@ export default function CryptoChart({
       try {
         chartRef.current.remove();
       } catch (error) {
-        console.warn('Chart removal warning:', error);
+        // 차트 제거 중 에러 발생 시 무시
       }
       chartRef.current = null;
     }
@@ -239,7 +240,7 @@ export default function CryptoChart({
             width: chartContainerRef.current.clientWidth,
           });
         } catch (error) {
-          console.warn('Chart resize warning:', error);
+          // 차트 리사이즈 중 에러 발생 시 무시
         }
       }
     };
@@ -253,7 +254,7 @@ export default function CryptoChart({
         try {
           chartRef.current.remove();
         } catch (error) {
-          console.warn('Chart cleanup warning:', error);
+          // 차트 정리 중 에러 발생 시 무시
         }
         chartRef.current = null;
       }
@@ -281,8 +282,6 @@ export default function CryptoChart({
   useEffect(() => {
     if (!chartInitialized) return;
 
-    console.log('Setting up real-time data polling for symbol:', symbol);
-
     // 실시간 데이터 업데이트 함수
     const updateRealTimeData = async () => {
       try {
@@ -297,7 +296,7 @@ export default function CryptoChart({
           setLow24h(parseFloat(ticker.lowPrice));
         }
       } catch (error) {
-        console.error('Real-time data update error:', error);
+        // 실시간 데이터 업데이트 에러 발생 시 무시
       }
     };
 
@@ -321,22 +320,12 @@ export default function CryptoChart({
       setIsLoading(true);
       setError(null); // 에러 상태 초기화
 
-      console.log(
-        'Loading initial data for symbol:',
-        symbol,
-        'interval:',
-        timeInterval,
-        'limit:',
-        dataLimit,
-      );
-
       let tickerSuccess = false;
       let candleSuccess = false;
 
       // 1. 티커 정보 가져오기 (현재 가격, 변동률 등)
       try {
         const ticker = await BinanceAPI.getTicker(symbol);
-        console.log('Ticker data received:', ticker);
         if (ticker) {
           setCurrentPrice(parseFloat(ticker.lastPrice));
           setPriceChange(parseFloat(ticker.priceChange));
@@ -347,71 +336,47 @@ export default function CryptoChart({
           tickerSuccess = true;
         }
       } catch (tickerError) {
-        console.error('Ticker fetch error:', tickerError);
         // 티커 에러는 치명적이지 않으므로 계속 진행
       }
 
       // 2. 캔들스틱 데이터 가져오기
       try {
         const candleData = await BinanceAPI.getKlines(symbol, timeInterval, dataLimit);
-        console.log(
-          'Candle data received:',
-          candleData.length,
-          'items for interval:',
-          timeInterval,
-        );
-        console.log('Sample candle data:', candleData.slice(0, 2));
-        console.log(
-          'Time format for',
-          timeInterval,
-          ':',
-          candleData.length > 0 ? candleData[0].time : 'No data',
-        );
 
         if (candleData.length > 0) {
           // 차트가 여전히 유효한지 확인
           if (!chartRef.current) {
-            console.warn('Chart is not available, skipping data update');
             return;
           }
-
-          // 시간 데이터 검증
-          const timeFormat = candleData[0].time;
-          console.log('Using time format:', timeFormat, 'for interval:', timeInterval);
 
           // 캔들스틱 차트 데이터 설정
           if (chartType === 'candlestick' && candlestickSeriesRef.current) {
             try {
-              console.log('Setting candlestick data for', timeInterval);
               const formattedCandleData = candleData.map((candle) => ({
                 ...candle,
                 time: candle.time as Time,
               }));
               candlestickSeriesRef.current.setData(formattedCandleData);
-              console.log('Candlestick data set successfully for', timeInterval);
             } catch (error) {
-              console.error('Failed to set candlestick data for', timeInterval, ':', error);
+              // 캔들스틱 데이터 설정 중 에러 발생 시 무시
             }
           }
           // 라인 차트 데이터 설정
           else if (chartType === 'line' && lineSeriesRef.current) {
             try {
-              console.log('Setting line data for', timeInterval);
               const lineData = candleData.map((candle) => ({
                 time: candle.time as Time,
                 value: candle.close, // 종가만 사용
               }));
               lineSeriesRef.current.setData(lineData);
-              console.log('Line data set successfully for', timeInterval);
             } catch (error) {
-              console.error('Failed to set line data for', timeInterval, ':', error);
+              // 라인 데이터 설정 중 에러 발생 시 무시
             }
           }
 
           // 거래량 데이터 설정
           if (showVolume && volumeSeriesRef.current) {
             try {
-              console.log('Setting volume data for', timeInterval);
               const volumeData = candleData.map((candle) => ({
                 time: candle.time as Time,
                 value: candle.volume || 0,
@@ -422,20 +387,16 @@ export default function CryptoChart({
                     : 'rgba(59, 130, 246, 0.5)',
               }));
               volumeSeriesRef.current.setData(volumeData);
-              console.log('Volume data set successfully for', timeInterval);
             } catch (error) {
-              console.error('Failed to set volume data for', timeInterval, ':', error);
+              // 거래량 데이터 설정 중 에러 발생 시 무시
             }
           }
 
-          console.log('Chart data set successfully for', timeInterval);
           candleSuccess = true;
         } else {
-          console.warn('No candle data received for', timeInterval);
           throw new Error('차트 데이터를 받지 못했습니다.');
         }
       } catch (candleError) {
-        console.error('Candle data fetch error for', timeInterval, ':', candleError);
         setError(
           candleError instanceof Error
             ? `차트 데이터 로드 실패: ${candleError.message}`
@@ -452,7 +413,6 @@ export default function CryptoChart({
 
       setIsLoading(false);
     } catch (error) {
-      console.error('전체 데이터 로드 실패:', error);
       setError(
         error instanceof Error
           ? `데이터 로드 실패: ${error.message}`
@@ -493,7 +453,6 @@ export default function CryptoChart({
    */
   const handleSymbolChange = (newSymbol: string) => {
     if (isUpdating || newSymbol === symbol) return;
-    console.log('Symbol changed to:', newSymbol);
     setSymbol(newSymbol);
   };
 
@@ -502,7 +461,6 @@ export default function CryptoChart({
    */
   const handleTimeIntervalChange = (newInterval: TimeInterval) => {
     if (isUpdating || newInterval === timeInterval) return;
-    console.log('Time interval changed to:', newInterval);
     setIsUpdating(true);
     setTimeInterval(newInterval);
     setTimeout(() => setIsUpdating(false), 200); // 짧은 딜레이로 중복 클릭 방지
@@ -513,7 +471,6 @@ export default function CryptoChart({
    */
   const handleChartTypeChange = (newType: ChartType) => {
     if (isUpdating || newType === chartType) return;
-    console.log('Chart type changed to:', newType);
     setIsUpdating(true);
     setChartType(newType);
     setTimeout(() => setIsUpdating(false), 200);

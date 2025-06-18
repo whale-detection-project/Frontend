@@ -136,10 +136,7 @@ export class BinanceAPI {
    * 타임스탬프를 TradingView 차트 라이브러리에 맞는 형식으로 변환
    * 간격에 따라 다른 형식을 사용합니다.
    */
-  static formatTime(
-    timestamp: number,
-    interval: string = '1d',
-  ): string | number {
+  static formatTime(timestamp: number, interval: string = '1d'): string | number {
     // 분 단위 간격 (1m, 3m, 5m, 15m, 30m) - Unix 타임스탬프 숫자 사용
     if (interval.includes('m')) {
       return Math.floor(timestamp / 1000);
@@ -151,11 +148,7 @@ export class BinanceAPI {
     }
 
     // 일/주/월 단위 - 날짜 문자열 (YYYY-MM-DD) 형식
-    if (
-      interval.includes('d') ||
-      interval.includes('w') ||
-      interval.includes('M')
-    ) {
+    if (interval.includes('d') || interval.includes('w') || interval.includes('M')) {
       return new Date(timestamp).toISOString().split('T')[0];
     }
 
@@ -176,53 +169,32 @@ export class BinanceAPI {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(
-          `Attempting to fetch ticker (attempt ${attempt}/${maxRetries}):`,
-          normalizedSymbol,
-        );
-
-        const response = await fetch(
-          `${this.BASE_URL}/ticker?symbol=${normalizedSymbol}`,
-          {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            // 타임아웃 설정
-            signal: AbortSignal.timeout(10000), // 10초 타임아웃
+        const response = await fetch(`${this.BASE_URL}/ticker?symbol=${normalizedSymbol}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
           },
-        );
+          // 타임아웃 설정
+          signal: AbortSignal.timeout(10000), // 10초 타임아웃
+        });
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(
-            `Ticker fetch failed (attempt ${attempt}):`,
-            response.status,
-            errorText,
-          );
-          throw new Error(
-            `Failed to fetch ticker: ${response.status} ${errorText}`,
-          );
+          console.error(`Ticker fetch failed (attempt ${attempt}):`, response.status, errorText);
+          throw new Error(`Failed to fetch ticker: ${response.status} ${errorText}`);
         }
 
         const data = await response.json();
-        console.log(`Successfully fetched ticker data (attempt ${attempt}):`, {
-          symbol: normalizedSymbol,
-          price: data.lastPrice,
-        });
+
         return data;
       } catch (error) {
         lastError = error instanceof Error ? error : new Error('Unknown error');
-        console.error(
-          `Ticker fetch error (attempt ${attempt}/${maxRetries}):`,
-          lastError.message,
-        );
+        console.error(`Ticker fetch error (attempt ${attempt}/${maxRetries}):`, lastError.message);
 
         // 마지막 시도가 아니면 잠시 대기 후 재시도
         if (attempt < maxRetries) {
           const delay = attempt * 1000; // 1초, 2초, 3초 대기
-          console.log(`Retrying in ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          await new Promise((resolve) => setTimeout(resolve, delay));
         }
       }
     }
@@ -248,10 +220,6 @@ export class BinanceAPI {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(
-          `Fetching klines (attempt ${attempt}/${maxRetries}): ${normalizedSymbol}, ${interval}, ${limit}`,
-        );
-
         // API 호출
         const response = await fetch(
           `${this.BASE_URL}/klines?symbol=${normalizedSymbol}&interval=${interval}&limit=${limit}`,
@@ -267,21 +235,12 @@ export class BinanceAPI {
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(
-            `Klines fetch failed (attempt ${attempt}):`,
-            response.status,
-            errorText,
-          );
-          throw new Error(
-            `HTTP error! status: ${response.status}, message: ${errorText}`,
-          );
+          console.error(`Klines fetch failed (attempt ${attempt}):`, response.status, errorText);
+          throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
         }
 
         // 바이낸스에서 받은 배열 데이터를 파싱
         const data: number[][] = await response.json();
-        console.log(
-          `Received ${data.length} klines for ${normalizedSymbol} (attempt ${attempt})`,
-        );
 
         // 데이터 유효성 검사
         if (!Array.isArray(data) || data.length === 0) {
@@ -289,7 +248,7 @@ export class BinanceAPI {
         }
 
         // 바이낸스 형식을 차트에서 사용할 형식으로 변환
-        const candleData = data.map(kline => {
+        const candleData = data.map((kline) => {
           // 데이터 유효성 검사
           if (!Array.isArray(kline) || kline.length < 6) {
             throw new Error('Invalid kline data format');
@@ -305,31 +264,20 @@ export class BinanceAPI {
           };
         });
 
-        console.log(
-          `Successfully processed ${candleData.length} candles for ${normalizedSymbol}`,
-        );
         return candleData;
       } catch (error) {
         lastError = error instanceof Error ? error : new Error('Unknown error');
-        console.error(
-          `Klines fetch error (attempt ${attempt}/${maxRetries}):`,
-          lastError.message,
-        );
 
         // 마지막 시도가 아니면 잠시 대기 후 재시도
         if (attempt < maxRetries) {
           const delay = attempt * 1500; // 1.5초, 3초, 4.5초 대기
-          console.log(`Retrying in ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
+          await new Promise((resolve) => setTimeout(resolve, delay));
         }
       }
     }
 
     // 모든 재시도가 실패한 경우
-    console.error(
-      '캔들스틱 데이터 가져오기 실패 (모든 재시도 완료):',
-      lastError?.message,
-    );
+    console.error('캔들스틱 데이터 가져오기 실패 (모든 재시도 완료):', lastError?.message);
     throw lastError || new Error('Failed to fetch klines after all retries');
   }
 
@@ -349,22 +297,19 @@ export class BinanceAPI {
 
     // 티커 스트림 URL 생성 (더 안정적이므로 티커만 사용)
     const wsUrl = `${this.WS_URL}/${normalizedSymbol}@ticker`;
-    console.log('Connecting to WebSocket:', wsUrl);
 
     try {
       const ws = new WebSocket(wsUrl);
 
       // 연결 성공 시
       ws.onopen = () => {
-        console.log('WebSocket connected successfully');
         this.reconnectAttempts = 0; // 연결 성공 시 재연결 시도 횟수 초기화
       };
 
       // 메시지 수신 시
-      ws.onmessage = event => {
+      ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log('WebSocket ticker data received:', data);
           onTickerUpdate(data); // 콜백 함수 호출
         } catch (error) {
           console.error('WebSocket message parsing error:', error);
@@ -372,7 +317,7 @@ export class BinanceAPI {
       };
 
       // 에러 발생 시
-      ws.onerror = error => {
+      ws.onerror = (error) => {
         console.error('WebSocket error:', error);
         // 개발 환경에서는 더 자세한 정보 출력
         if (process.env.NODE_ENV === 'development') {
@@ -385,18 +330,10 @@ export class BinanceAPI {
       };
 
       // 연결 종료 시
-      ws.onclose = event => {
-        console.log('WebSocket connection closed:', event.code, event.reason);
-
+      ws.onclose = (event) => {
         // 비정상적인 종료인 경우 재연결 시도
-        if (
-          event.code !== 1000 &&
-          this.reconnectAttempts < this.maxReconnectAttempts
-        ) {
+        if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
           this.reconnectAttempts++;
-          console.log(
-            `Attempting to reconnect... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`,
-          );
 
           // 점진적으로 재연결 간격 증가 (3초, 6초, 9초...)
           setTimeout(() => {
@@ -451,9 +388,7 @@ export class BinanceAPI {
    * 실제 프로덕션에서는 LSTM 모델의 결과를 사용해야 합니다.
    * 현재는 5% 이상의 급격한 변동을 이상치로 간주합니다.
    */
-  static detectAnomalies(
-    candleData: CandleData[],
-  ): Array<{ time: string; value: number }> {
+  static detectAnomalies(candleData: CandleData[]): Array<{ time: string; value: number }> {
     const anomalies: Array<{ time: string; value: number }> = [];
 
     // 각 캔들을 이전 캔들과 비교하여 이상치 탐지
@@ -462,8 +397,7 @@ export class BinanceAPI {
       const previous = candleData[i - 1];
 
       // 가격 변동률 계산
-      const changePercent =
-        Math.abs((current.close - previous.close) / previous.close) * 100;
+      const changePercent = Math.abs((current.close - previous.close) / previous.close) * 100;
 
       // 5% 이상의 급격한 변동을 이상치로 간주
       if (changePercent > 5) {
