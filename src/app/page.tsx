@@ -65,7 +65,7 @@ export default function Home() {
         setInitialLoading(true);
         const response = await apiClient.api.getLogsApiLogsGet({ limit: 100 });
         if (response.data && Array.isArray(response.data.logs)) {
-          const allLogs = response.data.logs as LogEntry[];
+          const allLogs = response.data.logs as unknown as LogEntry[];
 
           const fetchedNotifications = allLogs.map((log: LogEntry): Notification => {
             // 거래 패턴에 따라 사실적으로 보이도록 상세 데이터 생성

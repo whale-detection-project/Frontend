@@ -1,19 +1,25 @@
-import Header from '@/components/ui/header';
-import { ThemeProvider } from '@/contexts/theme-context';
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
 import './globals.css';
+import Header from '@/components/ui/header';
+import { Providers } from './providers';
+import { ReactNode } from 'react';
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+const inter = Inter({ subsets: ['latin'] });
+
+export const metadata: Metadata = {
+  title: 'Whale Detector',
+  description: 'AI-based Bitcoin Whale Transaction Detection',
+};
+
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ko" suppressHydrationWarning>
-      <body className="antialiased max-w-[1440px] mx-auto bg-background text-foreground">
-        <ThemeProvider>
+      <body className={`${inter.className} bg-background text-foreground`}>
+        <Providers>
           <Header />
-          {children}
-        </ThemeProvider>
+          <main>{children}</main>
+        </Providers>
       </body>
     </html>
   );

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Bell, TrendingUp, BarChart3, Menu, X, Moon, Sun } from 'lucide-react';
 import { useTheme } from '@/contexts/theme-context';
+import { useNotifications } from '@/contexts/notification-context';
 
 // 네비게이션 링크 데이터 정의
 const NAV_LINKS = [
@@ -23,6 +24,8 @@ export default function Header() {
   const { theme, toggleTheme } = useTheme();
   // 현재 경로 가져오기
   const pathname = usePathname();
+  // 알림 컨텍스트에서 읽지 않은 알림 수 가져오기
+  const { unreadCount } = useNotifications();
 
   // 모바일 메뉴 외부 클릭 감지 효과
   useEffect(() => {
@@ -142,9 +145,12 @@ export default function Header() {
               aria-label="알림 확인"
             >
               <Bell className="h-5 w-5" />
-              {/* 읽지 않은 알림 표시 (예시: 갯수를 표시하려면 unreadNotificationCount 상태 필요) */}
-              {/* 현재는 단순히 빨간 점으로 표시 */}
-              <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500"></span>
+              {/* 읽지 않은 알림 표시 */}
+              {unreadCount > 0 && (
+                <span className="absolute right-0 top-0 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] text-white">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </Link>
 
             {/* 모바일 메뉴 버튼 - 큰 화면에서는 숨김 */}
