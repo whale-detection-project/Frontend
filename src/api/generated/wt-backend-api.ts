@@ -26,6 +26,73 @@ export interface ValidationError {
   type: string;
 }
 
+/**
+ * WhaleTransaction
+ * @example {"btc":1340.55,"cluster":2,"fee_per_max_ratio":0.000042,"input_count":3,"max_input_address":"1ABCDxyz...","max_input_ratio":0.95,"max_output_address":"bc1QWErty...","max_output_ratio":0.78,"output_count":4,"timestamp":"2025-06-21T15:30:00"}
+ */
+export interface WhaleTransaction {
+  /**
+   * Cluster
+   * 예측된 클러스터 번호
+   */
+  cluster?: number | null;
+  /**
+   * Btc
+   * 총 입력값(BTC)
+   */
+  btc: number;
+  /**
+   * Input Count
+   * Input 개수
+   */
+  input_count: number;
+  /**
+   * Output Count
+   * Output 개수
+   */
+  output_count: number;
+  /**
+   * Max Output Ratio
+   * 최대 Output 비율
+   */
+  max_output_ratio: number;
+  /**
+   * Max Input Ratio
+   * 최대 Input 비율
+   */
+  max_input_ratio: number;
+  /**
+   * Fee Per Max Ratio
+   * 수수료 / 최대 output 비율
+   */
+  fee_per_max_ratio: number;
+  /**
+   * Timestamp
+   * 트랜잭션 발생 시간
+   * @format date-time
+   */
+  timestamp: string;
+  /**
+   * Max Input Address
+   * 가장 큰 input 주소
+   */
+  max_input_address?: string | null;
+  /**
+   * Max Output Address
+   * 가장 큰 output 주소
+   */
+  max_output_address?: string | null;
+}
+
+/**
+ * WhaleTransactionList
+ * @example {"logs":[{"btc":1340.55,"cluster":2,"fee_per_max_ratio":0.000042,"input_count":3,"max_input_address":"1ABCDxyz...","max_input_ratio":0.95,"max_output_address":"bc1QWErty...","max_output_ratio":0.78,"output_count":4,"timestamp":"2025-06-21T15:30:00"}]}
+ */
+export interface WhaleTransactionList {
+  /** Logs */
+  logs: WhaleTransaction[];
+}
+
 import type {
   AxiosInstance,
   AxiosRequestConfig,
@@ -209,6 +276,7 @@ export class HttpClient<SecurityDataType = unknown> {
  *             이 API는 블록체인 네트워크에서 고래 거래를 감지하고,
  *             실시간으로 클러스터링 결과를 제공합니다.
  *             - WebSocket을 통해 실시간 거래 데이터를 수신합니다.
+ *             - 탐지되는 고래의 최소 거래단위는 200BTC입니다.
  *             - 거래 데이터를 클러스터링하여 고래 거래를 식별합니다.
  *             - SSE(Server-Sent Events)를 통해 클라이언트에 실시간 알림을 전송합니다.
  *             - MongoDB에 거래 로그를 저장합니다.
@@ -219,7 +287,7 @@ export class Api<
 > extends HttpClient<SecurityDataType> {
   api = {
     /**
-     * @description 클라이언트가 SSE를 통해 실시간으로 고래 거래 알림을 받을 수 있습니다. 쿼리파라미터 `min_input_value`를 통해 알림 최소 기준값을 지정할 수 있습니다. 예시 메시지 형식: { "cluster": 3, "btc": 2450.12, "input_count": 2, "output_count": 5, "max_output_ratio": 0.76, "max_input_ratio": 0.95, "fee_per_max_ratio": 0.012, "timestamp": "2025-06-12T09:45:00" }
+     * @description 클라이언트가 SSE를 통해 실시간으로 고래 거래 알림을 받을 수 있습니다. 쿼리파라미터 `min_input_value`를 통해 알림 최소 기준값을 지정할 수 있습니다. ### 예시 요청 `GET /api/stream?min_input_value=1000`  *(기본값 1000)* ### 예시 전송 메시지 (JSON) ```json data: { "cluster": 2, "btc": 1234.56, "input_count": 3, "output_count": 4, "max_output_ratio": 0.78, "max_input_ratio": 0.91, "fee_per_max_ratio": 0.000032, "timestamp": "2025-06-21T16:45:00", "max_input_address": "1ABCDxyz...", "max_output_address": "bc1qWErty..." } ```
      *
      * @name StreamApiStreamGet
      * @summary SSE 실시간 고래 탐지 알림
@@ -244,14 +312,44 @@ export class Api<
       }),
 
     /**
-     * @description 저장된 최근 10개의 로그를 반환합니다.
+     * @description MongoDB에 저장된 최근 N개 고래 거래 로그를 반환합니다. 기본 20건
      *
      * @name GetLogsApiLogsGet
-     * @summary 고래 탐지 로그 10건 조회
+     * @summary 최신순으로 고래 탐지 로그 N건 조회
      * @request GET:/api/logs
      */
     getLogsApiLogsGet: (
       query?: {
+        /**
+         * Limit
+         * @default 20
+         */
+        limit?: number;
+      },
+      params: RequestParams = {},
+    ) =>
+      this.request<WhaleTransactionList, HTTPValidationError>({
+        path: `/api/logs`,
+        method: "GET",
+        query: query,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description `total_input_value`가 특정값 이상인 고래 거래를 조회합니다.
+     *
+     * @name GetWhalesApiWhalesGet
+     * @summary 특정 BTC 이상 고래 거래 조회
+     * @request GET:/api/whales
+     */
+    getWhalesApiWhalesGet: (
+      query?: {
+        /**
+         * Min Value
+         * @default 1000
+         */
+        min_value?: number;
         /**
          * Limit
          * @default 10
@@ -260,8 +358,8 @@ export class Api<
       },
       params: RequestParams = {},
     ) =>
-      this.request<any, HTTPValidationError | void>({
-        path: `/api/logs`,
+      this.request<WhaleTransactionList, HTTPValidationError>({
+        path: `/api/whales`,
         method: "GET",
         query: query,
         format: "json",
