@@ -18,6 +18,7 @@ import { ReactNode, useState, useEffect } from 'react';
 import { Modal } from './modal';
 import axios from 'axios';
 import { AddressDetailModal } from './address-detail-modal';
+import { BtcIcon } from './btc-icon';
 
 // 알림 데이터 타입
 interface Notification {
@@ -104,6 +105,34 @@ const getBitcoinHolderType = (btc: number): string => {
   return 'Shrimp'; // <1 BTC
 };
 
+const formatTimestamp = (utcTimestamp: string): string => {
+  const utcDate = new Date(utcTimestamp.endsWith('Z') ? utcTimestamp : utcTimestamp + 'Z');
+
+  const kstFormatter = new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hour12: false,
+  });
+
+  const parts = kstFormatter.formatToParts(utcDate);
+  const kstValues = parts
+    .filter((part) => part.type !== 'literal')
+    .reduce((acc, part) => {
+      acc[part.type] = part.value;
+      return acc;
+    }, {} as Record<string, string>);
+
+  const kstString = `${kstValues.year}. ${kstValues.month}. ${kstValues.day}. ${kstValues.hour}시 ${kstValues.minute}분 ${kstValues.second}초`;
+  const originalUtcString = utcTimestamp.replace('T', ' ').split('.')[0];
+
+  return `${originalUtcString} (UTC) / ${kstString} (KST)`;
+};
+
 export function NotificationItem({ notification }: NotificationItemProps) {
   const {
     type,
@@ -122,6 +151,19 @@ export function NotificationItem({ notification }: NotificationItemProps) {
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
 
   const holderType = btcValue !== undefined ? getBitcoinHolderType(btcValue) : undefined;
+
+  let displayTitle = title;
+  if (typeof title === 'string' && btcValue !== undefined) {
+    displayTitle = (
+      <div className="flex items-center gap-2">
+        <span>{title}</span>
+        <span className="font-mono text-muted-foreground">
+          {btcValue.toFixed(2)}
+          <BtcIcon className="inline-block w-4 h-4 ml-1" />
+        </span>
+      </div>
+    );
+  }
 
   const handleAddressClick = (e: React.MouseEvent, address: string) => {
     e.stopPropagation();
@@ -172,7 +214,7 @@ export function NotificationItem({ notification }: NotificationItemProps) {
             <div className="flex items-start justify-between mb-3">
               <div className="flex-1">
                 {/* 제목 */}
-                <h3 className="text-lg font-bold text-foreground mb-2">{title}</h3>
+                <h3 className="text-lg font-bold text-foreground mb-2">{displayTitle}</h3>
 
                 {/* 태그들 */}
                 <div className="flex flex-wrap items-center gap-2">
@@ -224,7 +266,7 @@ export function NotificationItem({ notification }: NotificationItemProps) {
             {/* 시간 정보 */}
             <div className="flex items-center text-xs text-muted-foreground/80">
               <Clock className="w-3.5 h-3.5 mr-1.5" />
-              <span>{timestamp}</span>
+              <span>{formatTimestamp(timestamp)}</span>
             </div>
           </div>
         </div>

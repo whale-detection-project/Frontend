@@ -120,20 +120,6 @@ export default function Home() {
           const allLogs = response.data.logs as unknown as LogEntry[];
 
           const fetchedNotifications = allLogs.map((log: LogEntry, index: number): Notification => {
-            // UTC 타임스탬프 문자열을 Date 객체로 파싱
-            const utcDate = new Date(
-              log.timestamp.endsWith('Z') ? log.timestamp : log.timestamp + 'Z',
-            );
-
-            // KST로 변환 및 포맷팅 (ko-KR 로케일 사용)
-            const kstString = utcDate.toLocaleString('ko-KR', {
-              timeZone: 'Asia/Seoul',
-              hour12: false,
-            });
-
-            // 원본 UTC 시간 포맷 변경 (T -> 공백, 밀리초 제거)
-            const originalUtcString = log.timestamp.replace('T', ' ').split('.')[0];
-
             return {
               id: `${log.timestamp}-${index}`,
               type: 'anomaly',
@@ -143,14 +129,14 @@ export default function Home() {
                   <span>대규모 거래 감지</span>
 
                   <span className="font-mono text-muted-foreground">
-                    ({log.total_input_value.toFixed(2)}
-                    <BtcIcon className="inline-block w-4 h-4 ml-1" />)
+                    {log.total_input_value.toFixed(2)}
+                    <BtcIcon className="inline-block w-4 h-4 ml-1" />
                   </span>
                 </div>
               ),
 
               message: `${log.total_input_value.toFixed(2)} BTC가 이동했습니다.`,
-              timestamp: `${originalUtcString} (UTC) / ${kstString} (KST)`,
+              timestamp: log.timestamp,
               isRead: true,
               severity: getSeverity(log.total_input_value),
               coin: 'BTC',

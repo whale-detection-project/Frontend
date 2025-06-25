@@ -153,9 +153,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         const newNotification: Notification = {
           id: data.timestamp + Math.random().toString(),
           type: 'anomaly',
-          title: `대규모 거래 감지 (${data.btc.toFixed(2)} BTC)`,
+          title: `대규모 거래 감지`,
           message: `${data.btc.toFixed(2)} BTC가 이동했습니다.`,
-          timestamp: new Date(data.timestamp).toLocaleString('ko-KR'),
+          timestamp: data.timestamp,
           isRead: false,
           severity: getSeverity(data.btc),
           total_input_value: data.btc,
