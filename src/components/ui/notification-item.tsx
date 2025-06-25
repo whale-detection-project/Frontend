@@ -20,7 +20,7 @@ import axios from 'axios';
 interface Notification {
   id: string;
   type: string;
-  title: string;
+  title: ReactNode;
   message: string;
   timestamp: string;
   isRead: boolean;
@@ -33,11 +33,19 @@ interface Notification {
   max_output_ratio?: number;
   fee_per_max_ratio?: number;
   max_input_ratio?: number;
+  max_input_address?: string;
+  max_output_address?: string;
 }
 
 interface NotificationItemProps {
   notification: Notification;
 }
+
+export const getSeverity = (btc: number): 'high' | 'medium' | 'low' => {
+  if (btc >= 1000) return 'high';
+  if (btc >= 100) return 'medium';
+  return 'low';
+};
 
 /**
  * 예측된 클러스터 번호에 따라 패턴 유형 문자열을 반환합니다.
@@ -78,32 +86,16 @@ const getNotificationIconComponent = (type: string) => {
 };
 
 /**
- * 알림 심각도에 따른 표시 텍스트를 반환합니다. ('높음', '보통', '낮음' 유지)
- */
-const getSeverityText = (severity: Notification['severity']): string => {
-  switch (severity) {
-    case 'high':
-      return '높음';
-    case 'medium':
-      return '보통';
-    case 'low':
-      return '낮음';
-    default:
-      return '';
-  }
-};
-
-/**
  * BTC 값에 따라 고래 유형 문자열을 반환합니다.
  * (스크린샷 이미지의 기준을 따름)
  */
 const getBitcoinHolderType = (btc: number): string => {
   if (btc >= 1000) return 'Whale'; // >1k BTC
   if (btc >= 500) return 'Shark'; // 500-1k BTC
-  if (btc >= 100) return 'Dolphin'; // 100-500 BTC
-  if (btc >= 50) return 'Fish'; // 50-100 BTC
-  if (btc >= 10) return 'Octopus'; // 10-50 BTC
-  if (btc >= 1) return 'Crab'; // 1-10 BTC
+  if (btc >= 200) return 'Dolphin'; // 200-499 BTC
+  if (btc >= 50) return 'Fish'; // 50-199 BTC
+  if (btc >= 10) return 'Octopus'; // 10-49 BTC
+  if (btc >= 1) return 'Crab'; // 1-9 BTC
   return 'Shrimp'; // <1 BTC
 };
 
@@ -113,10 +105,11 @@ export function NotificationItem({ notification }: NotificationItemProps) {
     title,
     message,
     timestamp,
-    severity,
     coin,
     predicted_cluster,
     total_input_value: btcValue,
+    max_input_address,
+    max_output_address,
   } = notification;
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -132,18 +125,6 @@ export function NotificationItem({ notification }: NotificationItemProps) {
   // 태그 공통 스타일
   const baseTagClasses =
     'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold transition-colors';
-
-  // 심각도 태그 스타일
-  const severityTagClasses = `
-    ${baseTagClasses}
-    ${
-      severity === 'high'
-        ? 'text-red-600 dark:text-red-500 bg-red-500/10'
-        : severity === 'medium'
-        ? 'text-yellow-600 dark:text-yellow-500 bg-yellow-500/10'
-        : 'text-green-600 dark:text-green-500 bg-green-500/10'
-    }
-  `;
 
   // 고래 유형 태그 스타일
   const holderTypeTagClasses = `
@@ -184,7 +165,6 @@ export function NotificationItem({ notification }: NotificationItemProps) {
                 <div className="flex flex-wrap items-center gap-2">
                   {coin && <span className={coinTagClasses}>{coin}</span>}
                   {holderType && <span className={holderTypeTagClasses}>{holderType}</span>}
-                  <span className={severityTagClasses}>{getSeverityText(severity)}</span>
                   {predicted_cluster !== undefined && (
                     <span className={clusterTagClasses}>{getClusterType(predicted_cluster)}</span>
                   )}
@@ -206,6 +186,19 @@ export function NotificationItem({ notification }: NotificationItemProps) {
 
             {/* 메시지 */}
             <p className="text-muted-foreground text-sm leading-relaxed mb-3">{message}</p>
+
+            {/* 주소 정보 */}
+            {max_input_address && max_output_address && (
+              <div className="mb-3 flex items-center space-x-2 text-sm text-muted-foreground">
+                <span className="inline-block bg-gray-100 dark:bg-gray-800 rounded-md px-2 py-1 text-xs font-mono truncate">
+                  {max_input_address}
+                </span>
+                <ArrowRightLeft className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <span className="inline-block bg-gray-100 dark:bg-gray-800 rounded-md px-2 py-1 text-xs font-mono truncate">
+                  {max_output_address}
+                </span>
+              </div>
+            )}
 
             {/* 시간 정보 */}
             <div className="flex items-center text-xs text-muted-foreground/80">
@@ -305,157 +298,138 @@ function AnalysisItem({
 }
 
 function TransactionDetail({ notification }: { notification: Notification }) {
+  const {
+    predicted_cluster,
+    total_input_value,
+    input_count,
+    output_count,
+    max_output_ratio,
+    fee_per_max_ratio,
+    max_input_ratio,
+  } = notification;
   const [btcPrice, setBtcPrice] = useState<number | null>(null);
+  const [isLoadingPrice, setIsLoadingPrice] = useState(true);
 
   useEffect(() => {
     const fetchBtcPrice = async () => {
       try {
         const response = await axios.get(
-          'https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT',
+          `https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT`,
         );
-        const data = response.data;
-        if (data.price) {
-          setBtcPrice(parseFloat(data.price));
-        }
+        setBtcPrice(parseFloat(response.data.price));
       } catch (error) {
         console.error('Error fetching Bitcoin price from Binance:', error);
+      } finally {
+        setIsLoadingPrice(false);
       }
     };
 
     fetchBtcPrice();
   }, []);
 
-  const {
-    predicted_cluster,
-    total_input_value,
-    btcValue,
-    input_count,
-    output_count,
-    max_output_ratio,
-    fee_per_max_ratio,
-    max_input_ratio,
-    fee,
-  } = notification as Notification & { btcValue?: number; fee?: number };
-
-  const currentBtcValue = total_input_value ?? btcValue ?? 0;
+  const currentBtcValue = total_input_value ?? 0;
 
   const clusterType = predicted_cluster !== undefined ? getClusterType(predicted_cluster) : 'N/A';
 
-  const totalFeeInBtc = fee !== undefined ? fee : currentBtcValue * (fee_per_max_ratio || 0);
-
-  const totalFeeInSatoshiNumber = totalFeeInBtc * 1e8;
-
   const analysisItems = [
     {
-      icon: <Shapes className="w-5 h-5" />,
+      icon: <Shapes className="w-6 h-6 text-blue-500" />,
       title: '거래 패턴 (AI 클러스터링)',
       value: <span className="text-blue-600 dark:text-blue-400">{clusterType}</span>,
       description: getClusterDescription(predicted_cluster),
     },
     {
-      icon: <CircleDollarSign className="w-5 h-5" />,
-      title: '총 거래 규모',
+      icon: <CircleDollarSign className="w-6 h-6 text-green-500" />,
+      title: '거래 규모',
       value: (
-        <span className="text-green-600 dark:text-green-400">
-          {(currentBtcValue || 0).toLocaleString('en-US', {
-            maximumFractionDigits: 2,
-          })}{' '}
-          BTC
-        </span>
-      ),
-      description:
-        '이 거래에 포함된 비트코인의 총량입니다. 거래의 영향력을 파악하는 가장 중요한 지표입니다.',
-    },
-    {
-      icon: <ArrowRightLeft className="w-5 h-5" />,
-      title: '입력/출력 주소 수',
-      value: (
-        <div className="flex items-center space-x-2">
-          <span>
-            <strong className="font-mono text-blue-600 dark:text-blue-400">
-              {input_count || 0}
-            </strong>{' '}
-            IN
-          </span>
-          <span className="text-muted-foreground/50 text-base">→</span>{' '}
-          <span>
-            <strong className="font-mono text-blue-600 dark:text-blue-400">
-              {output_count || 0}
-            </strong>{' '}
-            OUT
-          </span>
+        <div>
+          <div className="flex items-baseline gap-2">
+            <span>
+              {currentBtcValue.toLocaleString('en-US', {
+                maximumFractionDigits: 2,
+              })}
+            </span>
+            <span className="text-lg font-medium text-muted-foreground">BTC</span>
+          </div>
+          <div className="text-sm font-normal text-muted-foreground mt-1">
+            {isLoadingPrice ? (
+              <div className="h-5 w-24 bg-muted rounded animate-pulse" />
+            ) : btcPrice ? (
+              `≈ $${(currentBtcValue * btcPrice).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}`
+            ) : (
+              'USD 환산 불가'
+            )}
+          </div>
         </div>
       ),
-      description:
-        '거래에 사용된 입력(보내는 주소)과 출력(받는 주소)의 개수입니다. 이 수치는 자금의 흐름을 이해하는 데 도움을 줍니다.',
+      description: isLoadingPrice
+        ? 'Binance에서 실시간 시세 조회 중...'
+        : `1 BTC ≈ $${btcPrice ? btcPrice.toLocaleString('en-US') : '...'} (Binance)`,
     },
     {
-      icon: <Focus className="w-5 h-5" />,
+      icon: <ArrowRightLeft className="w-6 h-6" />,
+      title: '총 입출금 횟수',
+      value: `${input_count || 0} IN / ${output_count || 0} OUT`,
+      description: '하나의 트랜잭션에 포함된 입출금 주소의 개수입니다.',
+    },
+    {
+      icon: <Focus className="w-6 h-6" />,
       title: '최대 입력/출력 비율',
       value: (
-        <div className="flex items-center space-x-2 font-mono text-purple-600 dark:text-purple-400">
-          <span>{(max_input_ratio || 0).toFixed(4)}</span>
-          <span>/</span>
-          <span>{(max_output_ratio || 0).toFixed(4)}</span>
+        <div className="flex flex-col font-mono text-purple-600 dark:text-purple-400 text-lg">
+          <div className="flex justify-between items-baseline">
+            <span className="text-sm text-muted-foreground mr-2">입력(IN):</span>
+            <span>{(max_input_ratio || 0).toFixed(8)}</span>
+          </div>
+          <div className="flex justify-between items-baseline">
+            <span className="text-sm text-muted-foreground mr-2">출력(OUT):</span>
+            <span>{(max_output_ratio || 0).toFixed(8)}</span>
+          </div>
         </div>
       ),
       description:
         '단일 주소의 최대 입력/출력 비율입니다. 1에 가까울수록 특정 주소가 거래를 주도했음을 의미합니다.',
     },
     {
-      icon: <Receipt className="w-5 h-5" />,
-      title: '총 거래 수수료',
-      value: (
-        <div className="flex flex-col items-start font-mono">
-          {btcPrice !== null ? (
-            <>
-              <span className="text-xl md:text-2xl text-yellow-600 dark:text-yellow-500 font-bold">
-                $
-                {(totalFeeInBtc * btcPrice).toLocaleString('en-US', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </span>
-              <span className="text-sm text-muted-foreground mt-1">
-                (
-                {totalFeeInSatoshiNumber.toLocaleString('en-US', {
-                  maximumFractionDigits: 0,
-                })}{' '}
-                사토시)
-              </span>
-            </>
-          ) : (
-            <div className="space-y-1">
-              <div className="h-8 bg-muted dark:bg-secondary rounded-lg w-24 animate-pulse"></div>
-              <div className="h-5 bg-muted dark:bg-secondary rounded-lg w-20 animate-pulse"></div>
-            </div>
-          )}
-        </div>
-      ),
-      description: (
-        <span>
-          거래에 사용된 총 수수료의 현재 달러 가치입니다. 사토시는 비트코인의 가장 작은 단위입니다
-          (1 BTC = 10<sup>8</sup> 사토시).
-        </span>
-      ),
+      icon: <Receipt className="w-6 h-6" />,
+      title: '총 거래 수수료 (Satoshi)',
+      value: (currentBtcValue * (fee_per_max_ratio || 0) * 1e8).toLocaleString(undefined, {
+        maximumFractionDigits: 0,
+      }),
+      description: '사토시는 비트코인의 가장 작은 단위입니다 (1 BTC = 10^8 사토시).',
     },
   ];
 
-  return (
-    <div className="space-y-6">
-      {analysisItems.map((item, index) => (
-        <div key={item.title}>
-          <AnalysisItem
-            icon={item.icon}
-            title={item.title}
-            value={item.value}
-            description={item.description}
-          />
-          {index < analysisItems.length - 1 && (
-            <div className="border-t dark:border-border mt-6"></div>
-          )}
+  if (notification.max_input_address && notification.max_output_address) {
+    analysisItems.push({
+      icon: <ArrowRightLeft className="w-6 h-6 text-indigo-500" />,
+      title: '주요 거래 주소',
+      value: (
+        <div className="flex flex-col space-y-1 text-xs font-mono">
+          <div className="flex items-center" title={notification.max_input_address}>
+            <span className="font-semibold text-gray-400 mr-2 w-16 shrink-0">보낸 주소:</span>
+            <span className="truncate">{notification.max_input_address}</span>
+          </div>
+          <div className="flex items-center" title={notification.max_output_address}>
+            <span className="font-semibold text-gray-400 mr-2 w-16 shrink-0">받는 주소:</span>
+            <span className="truncate">{notification.max_output_address}</span>
+          </div>
         </div>
-      ))}
+      ),
+      description: '가장 많은 금액이 오고간 입출금 주소입니다.',
+    });
+  }
+
+  return (
+    <div className="p-1">
+      <div className="space-y-4">
+        {analysisItems.map((item) => (
+          <AnalysisItem key={item.title} {...item} />
+        ))}
+      </div>
     </div>
   );
 }
