@@ -13,6 +13,7 @@ import {
   ExternalLink,
   Loader2,
   ServerCrash,
+  Link,
 } from 'lucide-react';
 import { Button } from './button';
 
@@ -78,7 +79,7 @@ export function AddressDetailModal({ address, isOpen, onClose }: AddressDetailMo
           const response = await apiClient.api.addressInfoApiAddressInfoGet({ address });
           setData(response.data);
         } catch (err) {
-          setError('주소 정보를 불러오는 데 실패했습니다. 다시 시도해주세요.');
+          setError('주소 정보 조회 API의 한도를 초과했습니다. 잠시 후 다시 시도해주세요.');
           console.error('Failed to fetch address info:', err);
         } finally {
           setIsLoading(false);
@@ -108,7 +109,7 @@ export function AddressDetailModal({ address, isOpen, onClose }: AddressDetailMo
       return (
         <div className="flex flex-col items-center justify-center h-64 text-center">
           <ServerCrash className="w-12 h-12 text-red-500 mb-4" />
-          <h3 className="text-xl font-bold text-red-500">오류 발생</h3>
+          <h3 className="text-xl font-bold text-red-500">API 조회 한도 초과</h3>
           <p className="text-muted-foreground mt-2">{error}</p>
         </div>
       );
@@ -165,14 +166,13 @@ export function AddressDetailModal({ address, isOpen, onClose }: AddressDetailMo
       {data && (
         <div className="mt-6 text-center">
           <Button variant="outline" asChild>
-            <a
+            <Link
               href={`https://www.blockchain.com/explorer/addresses/btc/${address}`}
               target="_blank"
-              rel="noopener noreferrer"
               className="inline-flex items-center gap-2"
             >
               Blockchain.com에서 보기 <ExternalLink className="w-4 h-4" />
-            </a>
+            </Link>
           </Button>
         </div>
       )}
