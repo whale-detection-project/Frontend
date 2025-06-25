@@ -10,6 +10,38 @@
  * ---------------------------------------------------------------
  */
 
+/**
+ * AddressInfo
+ * @example {"address":"1ABCDxyz...","final_balance_btc":200.2,"total_received_btc":110000.5,"total_sent_btc":109800.3,"tx_count":3520}
+ */
+export interface AddressInfo {
+  /**
+   * Address
+   * 조회된 비트코인 주소
+   */
+  address: string;
+  /**
+   * Total Received Btc
+   * 주소가 받은 총 BTC
+   */
+  total_received_btc: number;
+  /**
+   * Total Sent Btc
+   * 주소가 보낸 총 BTC
+   */
+  total_sent_btc: number;
+  /**
+   * Final Balance Btc
+   * 현재 잔고 BTC
+   */
+  final_balance_btc: number;
+  /**
+   * Tx Count
+   * 총 트랜잭션 수
+   */
+  tx_count: number;
+}
+
 /** HTTPValidationError */
 export interface HTTPValidationError {
   /** Detail */
@@ -360,6 +392,28 @@ export class Api<
     ) =>
       this.request<WhaleTransactionList, HTTPValidationError>({
         path: `/api/whales`,
+        method: "GET",
+        query: query,
+        format: "json",
+        ...params,
+      }),
+
+    /**
+     * @description blockchain.info API를 사용해 주소의 총 입출금, 잔고 등을 조회하고 거래소 주소로 추정되는지 여부를 반환합니다.
+     *
+     * @name AddressInfoApiAddressInfoGet
+     * @summary 지갑 주소 정보 조회
+     * @request GET:/api/address-info
+     */
+    addressInfoApiAddressInfoGet: (
+      query: {
+        /** Address */
+        address: string;
+      },
+      params: RequestParams = {},
+    ) =>
+      this.request<AddressInfo, HTTPValidationError>({
+        path: `/api/address-info`,
         method: "GET",
         query: query,
         format: "json",

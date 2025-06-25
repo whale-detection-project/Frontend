@@ -278,12 +278,18 @@ export default function NotificationsPage() {
                         <Input
                           id="min-btc-value"
                           type="number"
-                          value={settings.minBtcValue}
+                          min="200"
+                          value={settings.minBtcValue || ''}
                           onChange={(e) => {
-                            const value = e.target.value === '' ? 0 : Number(e.target.value);
-                            updateSettings({ minBtcValue: value });
+                            const value = e.target.valueAsNumber;
+                            updateSettings({ minBtcValue: isNaN(value) ? 0 : value });
                           }}
-                          placeholder="예: 200"
+                          onBlur={() => {
+                            if (settings.minBtcValue < 200) {
+                              updateSettings({ minBtcValue: 200 });
+                            }
+                          }}
+                          placeholder="예: 1000"
                           className="w-full pl-4 pr-14"
                           disabled={
                             settings.showBrowserNotifications &&
@@ -295,7 +301,7 @@ export default function NotificationsPage() {
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-2">
-                        이 값 이상의 BTC 거래만 알림을 받습니다.
+                        이 값 이상의 BTC 거래만 알림을 받습니다. (최소 200 BTC)
                       </p>
                     </div>
                   </div>

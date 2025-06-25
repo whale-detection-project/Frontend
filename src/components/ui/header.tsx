@@ -9,8 +9,7 @@ import { useNotifications } from '@/contexts/notification-context';
 
 // 네비게이션 링크 데이터 정의
 const NAV_LINKS = [
-  { href: '/', label: '대시보드', icon: BarChart3, mobileOnly: false },
-  { href: '/market', label: '마켓', icon: TrendingUp, mobileOnly: false },
+  { href: '/dashboard', label: '대시보드', icon: BarChart3, mobileOnly: false },
   { href: '/notifications', label: '알림', icon: Bell, mobileOnly: false },
 ];
 

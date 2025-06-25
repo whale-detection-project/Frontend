@@ -43,7 +43,7 @@ export interface BinanceTicker {
 
 // 차트에서 사용할 캔들 데이터 타입 (바이낸스 데이터를 가공한 형태)
 export interface CandleData {
-  time: string | number; // 시간 (문자열 또는 숫자)
+  time: number; // 시간 (UTC Unix 타임스탬프, 초 단위)
   open: number; // 시가 (숫자로 변환됨)
   high: number; // 고가
   low: number; // 저가
@@ -53,7 +53,7 @@ export interface CandleData {
 
 // 거래량 데이터 타입
 export interface VolumeData {
-  time: string | number; // 시간
+  time: number; // 시간 (UTC Unix 타임스탬프, 초 단위)
   value: number; // 거래량 값
   color?: string; // 색상 (선택적)
 }
@@ -134,25 +134,9 @@ export class BinanceAPI {
 
   /**
    * 타임스탬프를 TradingView 차트 라이브러리에 맞는 형식으로 변환
-   * 간격에 따라 다른 형식을 사용합니다.
+   * 밀리초 단위를 초 단위로 변환합니다.
    */
-  static formatTime(timestamp: number, interval: string = '1d'): string | number {
-    // 분 단위 간격 (1m, 3m, 5m, 15m, 30m) - Unix 타임스탬프 숫자 사용
-    if (interval.includes('m')) {
-      return Math.floor(timestamp / 1000);
-    }
-
-    // 시간 단위 간격 (1h, 2h, 4h, 6h, 8h, 12h) - Unix 타임스탬프 숫자 사용
-    if (interval.includes('h')) {
-      return Math.floor(timestamp / 1000);
-    }
-
-    // 일/주/월 단위 - 날짜 문자열 (YYYY-MM-DD) 형식
-    if (interval.includes('d') || interval.includes('w') || interval.includes('M')) {
-      return new Date(timestamp).toISOString().split('T')[0];
-    }
-
-    // 기본값: Unix 타임스탬프 숫자
+  static formatTime(timestamp: number): number {
     return Math.floor(timestamp / 1000);
   }
 
@@ -210,7 +194,9 @@ export class BinanceAPI {
   static async getKlines(
     symbol: string,
     interval: string = '1d',
-    limit: number = 100,
+    limit: number = 1000,
+    startTime?: number,
+    endTime?: number,
   ): Promise<CandleData[]> {
     const normalizedSymbol = this.normalizeSymbol(symbol);
 
@@ -220,18 +206,23 @@ export class BinanceAPI {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
+        // API URL 구성
+        let url = `${this.BASE_URL}/klines?symbol=${normalizedSymbol}&interval=${interval}&limit=${limit}`;
+        if (startTime) url += `&startTime=${startTime}`;
+        if (endTime) url += `&endTime=${endTime}`;
+
         // API 호출
-        const response = await fetch(
-          `${this.BASE_URL}/klines?symbol=${normalizedSymbol}&interval=${interval}&limit=${limit}`,
-          {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            // 타임아웃 설정
-            signal: AbortSignal.timeout(15000), // 15초 타임아웃 (klines는 더 큰 데이터)
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache', // 캐시 무시 헤더 추가
+            Pragma: 'no-cache', // HTTP/1.0 호환성을 위한 헤더
+            Expires: '0', // 프록시 서버 캐시 방지
           },
-        );
+          // 타임아웃 설정
+          signal: AbortSignal.timeout(15000), // 15초 타임아웃 (klines는 더 큰 데이터)
+        });
 
         if (!response.ok) {
           const errorText = await response.text();
@@ -255,7 +246,7 @@ export class BinanceAPI {
           }
 
           return {
-            time: this.formatTime(kline[0], interval), // 시간
+            time: this.formatTime(kline[0]), // 시간
             open: parseFloat(kline[1].toString()), // 시가
             high: parseFloat(kline[2].toString()), // 고가
             low: parseFloat(kline[3].toString()), // 저가

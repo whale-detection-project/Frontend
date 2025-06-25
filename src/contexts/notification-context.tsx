@@ -19,7 +19,8 @@ interface Notification {
   timestamp: string;
   isRead: boolean;
   severity: 'high' | 'medium' | 'low';
-  btcValue: number;
+  total_input_value: number;
+  predicted_cluster: number;
   [key: string]: unknown; // any 대신 unknown 사용
 }
 
@@ -157,7 +158,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           timestamp: new Date(data.timestamp).toLocaleString('ko-KR'),
           isRead: false,
           severity: getSeverity(data.btc),
-          btcValue: data.btc,
+          total_input_value: data.btc,
+          predicted_cluster: data.cluster,
           ...data,
         };
 
@@ -202,7 +204,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       if (latestNotification.id !== lastNotifiedId.current) {
         new Notification(latestNotification.title, {
           body: latestNotification.message,
-          icon: '/favicon.ico',
+          icon: '/logo.svg',
           tag: latestNotification.id,
         });
         lastNotifiedId.current = latestNotification.id;
