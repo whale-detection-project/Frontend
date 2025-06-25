@@ -8,8 +8,11 @@ import { ReactNode } from 'react';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Whale Detector',
-  description: 'AI-based Bitcoin Whale Transaction Detection',
+  title: 'Whale-Detector',
+  description: '대규모 비트코인 거래를 탐지하고 AI 기반 인사이트를 제공합니다.',
+  icons: {
+    icon: '/logo.svg',
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

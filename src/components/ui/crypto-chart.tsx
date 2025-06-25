@@ -7,9 +7,9 @@ import {
   IChartApi,
   ISeriesApi,
   Time,
-  CandlestickSeries,
-  HistogramSeries,
-  LineSeries,
+  CandlestickData,
+  LineData,
+  HistogramData,
 } from 'lightweight-charts';
 import { BinanceAPI } from '@/lib/binance-api';
 import { useTheme } from '@/contexts/theme-context';
@@ -193,7 +193,7 @@ export default function CryptoChart({
     // 차트 타입에 따른 시리즈 생성
     if (chartType === 'candlestick') {
       // 캔들스틱 차트 (한국식 색상: 빨간색=상승, 파란색=하락)
-      const candlestickSeries = chart.addSeries(CandlestickSeries, {
+      const candlestickSeries = chart.addCandlestickSeries({
         upColor: '#ef4444', // 상승 캔들 색상 (빨간색)
         downColor: '#3b82f6', // 하락 캔들 색상 (파란색)
         borderVisible: false,
@@ -203,7 +203,7 @@ export default function CryptoChart({
       candlestickSeriesRef.current = candlestickSeries;
     } else {
       // 라인 차트
-      const lineSeries = chart.addSeries(LineSeries, {
+      const lineSeries = chart.addLineSeries({
         color: '#3b82f6',
         lineWidth: 2,
       });
@@ -212,7 +212,7 @@ export default function CryptoChart({
 
     // 거래량 시리즈 추가 (옵션)
     if (showVolume) {
-      const volumeSeries = chart.addSeries(HistogramSeries, {
+      const volumeSeries = chart.addHistogramSeries({
         color: isDark ? '#475569' : '#d1d5db',
         priceFormat: {
           type: 'volume', // 거래량 형식
@@ -352,7 +352,7 @@ export default function CryptoChart({
           // 캔들스틱 차트 데이터 설정
           if (chartType === 'candlestick' && candlestickSeriesRef.current) {
             try {
-              const formattedCandleData = candleData.map((candle) => ({
+              const formattedCandleData: CandlestickData<Time>[] = candleData.map((candle) => ({
                 ...candle,
                 time: candle.time as Time,
               }));
@@ -364,7 +364,7 @@ export default function CryptoChart({
           // 라인 차트 데이터 설정
           else if (chartType === 'line' && lineSeriesRef.current) {
             try {
-              const lineData = candleData.map((candle) => ({
+              const lineData: LineData<Time>[] = candleData.map((candle) => ({
                 time: candle.time as Time,
                 value: candle.close, // 종가만 사용
               }));
@@ -377,7 +377,7 @@ export default function CryptoChart({
           // 거래량 데이터 설정
           if (showVolume && volumeSeriesRef.current) {
             try {
-              const volumeData = candleData.map((candle) => ({
+              const volumeData: HistogramData<Time>[] = candleData.map((candle) => ({
                 time: candle.time as Time,
                 value: candle.volume || 0,
                 // 상승/하락에 따른 색상 설정
