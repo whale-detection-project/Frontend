@@ -91,6 +91,7 @@ const CLUSTER_NAMES: { [key: number]: string } = {
   1: '단순 이체형',
   2: '자금 통합형',
   3: '자금 분산형',
+  4: '다중 복합 유형',
 };
 
 const filterOptions: DropdownOption<'all' | '200-499' | '500-999' | '1000+'>[] = [
@@ -119,6 +120,20 @@ export default function Home() {
           const allLogs = response.data.logs as unknown as LogEntry[];
 
           const fetchedNotifications = allLogs.map((log: LogEntry, index: number): Notification => {
+            // UTC 타임스탬프 문자열을 Date 객체로 파싱
+            const utcDate = new Date(
+              log.timestamp.endsWith('Z') ? log.timestamp : log.timestamp + 'Z',
+            );
+
+            // KST로 변환 및 포맷팅 (ko-KR 로케일 사용)
+            const kstString = utcDate.toLocaleString('ko-KR', {
+              timeZone: 'Asia/Seoul',
+              hour12: false,
+            });
+
+            // 원본 UTC 시간 포맷 변경 (T -> 공백, 밀리초 제거)
+            const originalUtcString = log.timestamp.replace('T', ' ').split('.')[0];
+
             return {
               id: `${log.timestamp}-${index}`,
               type: 'anomaly',
@@ -135,7 +150,7 @@ export default function Home() {
               ),
 
               message: `${log.total_input_value.toFixed(2)} BTC가 이동했습니다.`,
-              timestamp: new Date(log.timestamp).toLocaleString('ko-KR'),
+              timestamp: `${originalUtcString} (UTC) / ${kstString} (KST)`,
               isRead: true,
               severity: getSeverity(log.total_input_value),
               coin: 'BTC',
@@ -199,12 +214,15 @@ export default function Home() {
       }
     });
 
-    const chartData = Object.entries(counts)
-      .map(([cluster, count]) => ({
-        name: CLUSTER_NAMES[parseInt(cluster)] || `Cluster ${cluster}`,
-        count,
-        fill: CLUSTER_COLORS[parseInt(cluster) as keyof typeof CLUSTER_COLORS] || '#6b7280',
-      }))
+    const chartData = Object.keys(CLUSTER_NAMES)
+      .map((clusterKeyStr) => {
+        const clusterKey = parseInt(clusterKeyStr, 10);
+        return {
+          name: CLUSTER_NAMES[clusterKey],
+          count: counts[clusterKey] || 0,
+          fill: CLUSTER_COLORS[clusterKey as keyof typeof CLUSTER_COLORS],
+        };
+      })
       .sort((a, b) => b.count - a.count); // 카운트 순으로 정렬
 
     setClusterCounts(chartData);
@@ -294,7 +312,7 @@ export default function Home() {
             />
             <StatCard
               icon={BarChart}
-              title="탐지된 패턴 종류"
+              title="탐지 패턴 종류"
               value={initialLoading ? '...' : clusterCounts.length.toString()}
               valueColor="text-indigo-500"
             />

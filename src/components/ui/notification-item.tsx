@@ -11,10 +11,13 @@ import {
   ArrowRightLeft,
   Focus,
   Receipt,
+  Key,
+  ArrowUpDown,
 } from 'lucide-react';
 import { ReactNode, useState, useEffect } from 'react';
 import { Modal } from './modal';
 import axios from 'axios';
+import { AddressDetailModal } from './address-detail-modal';
 
 // 알림 데이터 타입
 interface Notification {
@@ -60,6 +63,8 @@ const getClusterType = (clusterNumber: number): string => {
       return '자금 통합형';
     case 3:
       return '자금 분산형';
+    case 4:
+      return '다중 복합 유형';
     default:
       return '알 수 없는 패턴';
   }
@@ -113,8 +118,16 @@ export function NotificationItem({ notification }: NotificationItemProps) {
   } = notification;
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
 
   const holderType = btcValue !== undefined ? getBitcoinHolderType(btcValue) : undefined;
+
+  const handleAddressClick = (e: React.MouseEvent, address: string) => {
+    e.stopPropagation();
+    setSelectedAddress(address);
+    setIsAddressModalOpen(true);
+  };
 
   // 알림 카드 컨테이너 디자인 (전역 테마 적용)
   const containerClasses = `
@@ -190,13 +203,21 @@ export function NotificationItem({ notification }: NotificationItemProps) {
             {/* 주소 정보 */}
             {max_input_address && max_output_address && (
               <div className="mb-3 flex items-center space-x-2 text-sm text-muted-foreground">
-                <span className="inline-block bg-gray-100 dark:bg-gray-800 rounded-md px-2 py-1 text-xs font-mono truncate">
+                <button
+                  onClick={(e) => handleAddressClick(e, max_input_address)}
+                  className="cursor-pointer inline-block bg-gray-100 dark:bg-gray-800 rounded-md px-2 py-1 text-xs font-mono truncate hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                  title={max_input_address}
+                >
                   {max_input_address}
-                </span>
+                </button>
                 <ArrowRightLeft className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                <span className="inline-block bg-gray-100 dark:bg-gray-800 rounded-md px-2 py-1 text-xs font-mono truncate">
+                <button
+                  onClick={(e) => handleAddressClick(e, max_output_address)}
+                  className="cursor-pointer inline-block bg-gray-100 dark:bg-gray-800 rounded-md px-2 py-1 text-xs font-mono truncate hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                  title={max_output_address}
+                >
                   {max_output_address}
-                </span>
+                </button>
               </div>
             )}
 
@@ -216,6 +237,11 @@ export function NotificationItem({ notification }: NotificationItemProps) {
       >
         <TransactionDetail notification={notification} />
       </Modal>
+      <AddressDetailModal
+        isOpen={isAddressModalOpen}
+        onClose={() => setIsAddressModalOpen(false)}
+        address={selectedAddress}
+      />
     </>
   );
 }
@@ -267,6 +293,8 @@ const getClusterDescription = (clusterNumber?: number): string => {
       return '여러 주소로부터 자금을 하나의 주소로 통합하는 패턴입니다. 분산된 개인 지갑의 자산을 통합하거나, 다수의 소액 입금을 받는 서비스에서 주로 발견됩니다. (예: 채굴 풀 보상 집계)';
     case 3:
       return '하나의 주소에서 여러 주소로 자금을 분산하여 보내는 패턴입니다. 기업의 급여 지급, 대규모 에어드랍, 혹은 자금 세탁 목적의 분할 거래에서 나타날 수 있습니다.';
+    case 4:
+      return '기존에 정의된 클러스터와 거리가 멀어 특정 패턴으로 분류하기 어려운 거래입니다. 새로운 유형의 거래이거나 이상치(outlier)일 수 있습니다.';
     default:
       return '분석된 데이터가 특정 패턴에 해당하지 않거나, 새로운 유형의 거래일 수 있습니다.';
   }
@@ -309,6 +337,13 @@ function TransactionDetail({ notification }: { notification: Notification }) {
   } = notification;
   const [btcPrice, setBtcPrice] = useState<number | null>(null);
   const [isLoadingPrice, setIsLoadingPrice] = useState(true);
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
+
+  const handleAddressClick = (address: string) => {
+    setSelectedAddress(address);
+    setIsAddressModalOpen(true);
+  };
 
   useEffect(() => {
     const fetchBtcPrice = async () => {
@@ -370,23 +405,31 @@ function TransactionDetail({ notification }: { notification: Notification }) {
         : `1 BTC ≈ $${btcPrice ? btcPrice.toLocaleString('en-US') : '...'} (Binance)`,
     },
     {
-      icon: <ArrowRightLeft className="w-6 h-6" />,
+      icon: <ArrowUpDown className="w-6 h-6 text-yellow-500" />,
       title: '총 입출금 횟수',
-      value: `${input_count || 0} IN / ${output_count || 0} OUT`,
+      value: (
+        <span className="text-lg font-medium">{`${input_count || 0} IN / ${
+          output_count || 0
+        } OUT`}</span>
+      ),
       description: '하나의 트랜잭션에 포함된 입출금 주소의 개수입니다.',
     },
     {
-      icon: <Focus className="w-6 h-6" />,
+      icon: <Focus className="w-6 h-6 text-purple-500" />,
       title: '최대 입력/출력 비율',
       value: (
-        <div className="flex flex-col font-mono text-purple-600 dark:text-purple-400 text-lg">
-          <div className="flex justify-between items-baseline">
-            <span className="text-sm text-muted-foreground mr-2">입력(IN):</span>
-            <span>{(max_input_ratio || 0).toFixed(8)}</span>
+        <div className="flex flex-col space-y-1 text-lg font-medium font-mono">
+          <div className="flex items-baseline">
+            <span className="text-sm text-muted-foreground mr-2 w-20 shrink-0">입력(IN):</span>
+            <span className="text-purple-600 dark:text-purple-400">
+              {(max_input_ratio || 0).toFixed(8)}
+            </span>
           </div>
-          <div className="flex justify-between items-baseline">
-            <span className="text-sm text-muted-foreground mr-2">출력(OUT):</span>
-            <span>{(max_output_ratio || 0).toFixed(8)}</span>
+          <div className="flex items-baseline">
+            <span className="text-sm text-muted-foreground mr-2 w-20 shrink-0">출력(OUT):</span>
+            <span className="text-purple-600 dark:text-purple-400">
+              {(max_output_ratio || 0).toFixed(8)}
+            </span>
           </div>
         </div>
       ),
@@ -394,42 +437,64 @@ function TransactionDetail({ notification }: { notification: Notification }) {
         '단일 주소의 최대 입력/출력 비율입니다. 1에 가까울수록 특정 주소가 거래를 주도했음을 의미합니다.',
     },
     {
-      icon: <Receipt className="w-6 h-6" />,
+      icon: <Receipt className="w-6 h-6 text-red-500" />,
       title: '총 거래 수수료 (Satoshi)',
-      value: (currentBtcValue * (fee_per_max_ratio || 0) * 1e8).toLocaleString(undefined, {
-        maximumFractionDigits: 0,
-      }),
+      value: (
+        <div className="flex items-baseline gap-1.5">
+          <span className="text-lg font-medium">
+            {(currentBtcValue * (fee_per_max_ratio || 0) * 1e8).toLocaleString(undefined, {
+              maximumFractionDigits: 0,
+            })}
+          </span>
+          <span className="text-sm text-muted-foreground">Sats</span>
+        </div>
+      ),
       description: '사토시는 비트코인의 가장 작은 단위입니다 (1 BTC = 10^8 사토시).',
     },
   ];
 
   if (notification.max_input_address && notification.max_output_address) {
     analysisItems.push({
-      icon: <ArrowRightLeft className="w-6 h-6 text-indigo-500" />,
+      icon: <Key className="w-6 h-6 text-indigo-500" />,
       title: '주요 거래 주소',
       value: (
-        <div className="flex flex-col space-y-1 text-xs font-mono">
-          <div className="flex items-center" title={notification.max_input_address}>
+        <div className="flex flex-col space-y-2 text-sm font-mono">
+          <button
+            onClick={() => handleAddressClick(notification.max_input_address!)}
+            className="flex items-center text-left hover:text-primary transition-colors w-full cursor-pointer"
+            title={notification.max_input_address}
+          >
             <span className="font-semibold text-gray-400 mr-2 w-16 shrink-0">보낸 주소:</span>
             <span className="truncate">{notification.max_input_address}</span>
-          </div>
-          <div className="flex items-center" title={notification.max_output_address}>
+          </button>
+          <button
+            onClick={() => handleAddressClick(notification.max_output_address!)}
+            className="flex items-center text-left hover:text-primary transition-colors w-full cursor-pointer"
+            title={notification.max_output_address}
+          >
             <span className="font-semibold text-gray-400 mr-2 w-16 shrink-0">받는 주소:</span>
             <span className="truncate">{notification.max_output_address}</span>
-          </div>
+          </button>
         </div>
       ),
-      description: '가장 많은 금액이 오고간 입출금 주소입니다.',
+      description: '가장 많은 금액이 오고간 입출금 주소입니다. 클릭 시 상세 정보를 조회합니다.',
     });
   }
 
   return (
     <div className="p-1">
-      <div className="space-y-4">
+      <div className="divide-y divide-border">
         {analysisItems.map((item) => (
-          <AnalysisItem key={item.title} {...item} />
+          <div key={item.title} className="py-4 first:pt-0 last:pb-0">
+            <AnalysisItem {...item} />
+          </div>
         ))}
       </div>
+      <AddressDetailModal
+        isOpen={isAddressModalOpen}
+        onClose={() => setIsAddressModalOpen(false)}
+        address={selectedAddress}
+      />
     </div>
   );
 }
