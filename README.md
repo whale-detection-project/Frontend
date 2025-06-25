@@ -1,36 +1,98 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🐋 Whale Detector: 실시간 비트코인 고래 탐지 및 AI 기반 인사이트 제공
 
-## Getting Started
+> 대규모 비트코인 거래를 실시간으로 탐지하고 AI 기반 인사이트를 제공하여 시장의 중요한 움직임을 놓치지 않도록 돕는 웹 애플리케이션입니다.
 
-First, run the development server:
+## 📖 프로젝트 소개 (About)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+**Whale Detector**는 비트코인 네트워크에서 발생하는 대규모 거래(일명 '고래'의 움직임)를 실시간으로 탐지하고, **인공지능(AI) 클러스터링 기술**을 통해 거래 패턴을 분석하여 사용자에게 깊이 있는 인사이트를 제공하는 혁신적인 웹 애플리케이션입니다.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+기존의 단순 거래량 기반 탐지를 넘어, 거래의 세부적인 특성과 패턴을 기반으로 고래의 행동을 유형화합니다. 이를 통해 복잡하고 방대한 블록체인 데이터를 **시각적으로 이해하기 쉽게 표현**하며, 투자자들이 보다 정밀하고 신뢰할 수 있는 의사결정을 내릴 수 있도록 돕습니다.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## ✨ 주요 기능 (Features)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **📈 실시간 거래 탐지**: Binance WebSocket을 통해 대규모 비트코인 트랜잭션 (총 입력 합계 1,000 BTC 이상)을 실시간으로 추적하고 사용자에게 즉각적인 알림을 제공합니다.
+- **🤖 AI 기반 패턴 분석**: 독자적인 **K-Means 클러스터링 및 XGBoost 분류 모델**을 통해 고래 거래를 다음과 같은 핵심 패턴으로 자동 분류하고 예측합니다.
+  - **지갑 리밸런싱 (Cluster 0)**: 동일 사용자가 여러 내부 주소로 자금을 재배치하는 패턴입니다.
+  - **단순 이체형 (Cluster 1)**: 규모는 크지만 주소 이동이 단순한, 콜드월렛 보관이나 고정 지갑 간 이체와 같은 '단일 → 단일' 전송 패턴입니다.
+  - **자금 통합형 (Cluster 2)**: 여러 지갑의 잔액을 한꺼번에 모으거나 믹싱 서비스에 투입하기 전에 주소를 정리하는 단계에서 주로 관측되는, 다중 입력이 소수 출력으로 병합되는 패턴입니다.
+  - **자금 분산형 (Cluster 3)**: 소수의 입력으로부터 다수의 신규 주소로 자금을 쪼개는 전형적인 세탁 시도이거나, 거래소에서 사용자가 대거 출금할 때 나타나는 패턴입니다.
+- **📊 상세 거래 정보**: 각 탐지된 거래에 대한 상세 정보를 제공하여 사용자가 심층 분석할 수 있도록 돕습니다.
+  - 총 거래 규모 (BTC)
+  - 입력/출력 주소 수
+  - 최대 입력/출력 비율 - 특정 지갑의 집중도 파악
+  - 거래 수수료 정보 (Fee)
+- **🎨 사용자 친화적 UI**: 깔끔하고 직관적인 인터페이스와 사용자의 눈의 피로를 덜어주는 다크 모드를 지원하여 최적의 사용자 경험을 제공합니다.
 
-## Learn More
+## 🧠 AI 모델 상세 (AI Model Details)
 
-To learn more about Next.js, take a look at the following resources:
+**Whale Detector**는 비트코인 고래의 복잡한 거래 패턴을 효과적으로 분류하기 위해 **비지도 학습(Unsupervised Learning)과 지도 학습(Supervised Learning)을 결합한 2단계 AI 모델 파이프라인**을 사용합니다. 이 독창적인 접근 방식은 데이터에 대한 사전 레이블 없이도 의미 있는 고래 유형을 도출하고, 이를 기반으로 실시간 거래를 정확하게 예측할 수 있도록 설계되었습니다.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 1. 데이터 준비 및 특성 공학 (Data Preparation & Feature Engineering)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+모델 학습에 앞서, Google BigQuery에서 수집된 약 88만 건의 대규모 비트코인 트랜잭션 데이터를 활용했습니다. 각 트랜잭션에서 고래의 행동을 대표할 수 있는 4가지 핵심 특성(Feature)을 추출하고 가공했습니다.
 
-## Deploy on Vercel
+- **`input_count`**: 해당 트랜잭션에 포함된 입력(자금을 보내는) 주소의 개수.
+- **`output_count`**: 해당 트랜잭션에 포함된 출력(자금을 받는) 주소의 개수.
+- **`max_input_ratio`**: 총 입력 금액 중 가장 큰 하나의 입력 주소가 차지하는 비율. 이는 특정 주소의 자금 집중도를 나타냅니다.
+- **`max_output_ratio`**: 총 출력 금액 중 가장 큰 하나의 출력 주소가 차지하는 비율. 이는 자금의 최종 목적지 집중도를 나타냅니다.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+추출된 특성들은 `np.log1p()` 로그 변환을 통해 값의 왜곡을 줄이고, `StandardScaler`를 이용한 정규화를 통해 모델 학습에 적합한 형태로 변환됩니다.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 2. 1단계: K-Means 클러스터링 (Unsupervised Clustering)
+
+사전 정의된 고래 유형 레이블이 없으므로, K-Means 알고리즘을 사용하여 유사한 특성을 가진 고래 거래들을 자동으로 그룹화(클러스터링)합니다.
+
+- **목적**: 대규모 트랜잭션 데이터 내에 잠재되어 있는 고래 행동 패턴을 탐색하고, 의미 있는 그룹으로 분할하여 '유형 레이블'을 생성합니다.
+- **클러스터 수 결정 ($K$)**: 최적의 $K$ 값 (군집의 개수)을 결정하기 위해 Elbow Method (KneeLocator 자동화), Silhouette Score, 그리고 Calinski-Harabasz Index의 세 가지 평가 지표를 교차 검증했습니다. 대부분의 지표가 `K=2` 또는 `K=4`를 추천했지만, 실제 고래 거래의 복잡성과 유형 해석의 용이성을 고려하여 최종적으로 **`K=4`**를 최적의 클러스터 개수로 선정했습니다.
+- **클러스터 분석 결과 및 고래 유형 매핑**:
+  K-Means 클러스터링을 통해 도출된 4가지 클러스터는 각각 다음과 같은 고유한 특성 값을 가지며, 이는 실제 고래 거래 패턴과 밀접하게 연결됩니다.
+
+| Cluster | IC (평균) | OC (평균) | MOR (평균) | MIR (평균) | 해석된 고래 유형                                                                                                                                                                                                                                    |
+| :------ | :-------- | :-------- | :--------- | :--------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **0**   | ≈ 2.15    | ≈ 5.30    | 0.45       | 0.86       | **지갑 리밸런싱**: 입력 주소 수는 적으나(≈2.15), 출력이 평균 5건 정도로 확장되는 패턴입니다. 동일 사용자가 자신의 여러 내부 주소로 자금을 재배치할 때 주로 나타납니다.                                                                              |
+| **1**   | ≈ 1.24    | ≈ 2.08    | 0.99       | 0.99       | **단순 이체형**: 입력과 출력이 모두 적고(≈1~2건), 입·출금 비율이 거의 1에 수렴합니다. 콜드월렛 보관, 고정 지갑 간 이체처럼 '단일 → 단일'의 단순한 대규모 전송으로 해석됩니다.                                                                       |
+| **2**   | ≈ 23.48   | ≈ 2.33    | 0.93       | 0.27       | **자금 통합형**: 20건이 넘는 다수의 입력 주소로부터 소수의 출력 주소(평균 ≈2.33건)로 자금이 병합되는 패턴입니다. 이는 여러 지갑의 잔액을 한곳에 모으거나, 믹싱 서비스에 투입하기 전에 주소를 정리하는 단계에서 주로 관측됩니다.                     |
+| **3**   | ≈ 2.21    | ≈ 23.92   | 0.95       | 0.98       | **자금 분산형**: 소수의 입력 주소(평균 ≈2.21건)로부터 다수의 출력 주소(평균 ≈23.92건)로 자금이 급격히 분산되는 패턴입니다. 다수의 신규 주소로 자금을 쪼개는 전형적인 자금 세탁 시도이거나, 거래소에서 사용자들이 대거 출금할 때 나타날 수 있습니다. |
+
+- **결과**: 각 트랜잭션에 대해 0부터 3까지의 클러스터 레이블을 부여하여, 다음 단계인 지도 학습의 '정답' 데이터로 활용합니다.
+
+### 3. 2단계: XGBoost 분류기 (Supervised Classification)
+
+K-Means가 부여한 클러스터 레이블을 정답 값으로 사용하여, 실시간으로 유입되는 새로운 고래 거래를 즉시 분류할 수 있는 지도 학습 모델을 구축합니다.
+
+- **목적**: K-Means로 정의된 4가지 고래 유형을 학습하여, 실시간으로 탐지되는 트랜잭션이 어떤 유형에 속하는지 정확하게 예측합니다.
+- **모델 선택**: **XGBoost (Extreme Gradient Boosting)**는 높은 예측 정확도와 빠른 학습 및 추론 속도로 정형 데이터 분류에 매우 강력한 성능을 보이는 모델입니다. 대규모 비트코인 트랜잭션을 실시간으로 처리해야 하는 본 시스템의 요구 사항에 가장 적합하다고 판단했습니다.
+- **성능**: 테스트 데이터 17만 건 기준, **99.88%**의 뛰어난 **정확도(Accuracy)**와 **0.995**의 **매크로 F1 스코어(Macro F1 Score)**를 달성했습니다. 이는 4가지 고래 유형을 매우 안정적으로 구분할 수 있음을 입증합니다. 높은 성능의 주된 요인은 4가지 클러스터의 특성 값들이 입력/출금 축에서 뚜렷하게 구분되어 결정 경계가 명확했기 때문입니다. 또한, 비지도 학습(K-Means)을 통해 먼저 데이터의 잠재적 패턴을 파악한 후 이를 지도 학습(XGBoost)의 레이블로 활용함으로써 모델의 분류 능력이 더욱 강화되었습니다.
+- **실시간 추론**: 학습된 XGBoost 모델은 FastAPI 백엔드에 통합되어, 실시간으로 유입되는 고래 트랜잭션에 대해 즉시 유형을 분류하고 프론트엔드로 전달합니다.
+
+### 4. 모델의 가치와 해석 가능성
+
+클러스터링을 통해 도출된 각 클러스터의 중심값은 초기 프로젝트에서 정의했던 거래 유형 가설과 수치적으로 정확히 대응되었습니다. 이는 모델이 단순히 통계적인 구분을 넘어, 실제 온체인(On-chain) 행위 모델과 높은 정합성을 가지며 사용자에게 **설명 가능한 형태의 인사이트**를 제공할 수 있음을 의미합니다.
+
+## 🛠️ 기술 스택 (Tech Stack)
+
+### Frontend
+
+- **Next.js**: React 기반의 프로덕션 지향 프레임워크 (SSR, SSG, 빠른 개발)
+- **React**: 사용자 인터페이스 구축을 위한 JavaScript 라이브러리
+- **TypeScript**: 안전하고 확장 가능한 코드 작성을 위한 JavaScript 상위 집합
+- **Styling**:
+  - **Tailwind CSS**: 유틸리티 우선(utility-first) CSS 프레임워크
+  - **shadcn/ui**: 재사용 가능한 UI 컴포넌트 라이브러리
+- **State Management**: React Hooks (useState, useEffect)
+- **Data Fetching**: Axios
+- **Icons**: Lucide React
+
+### Backend & AI/ML
+
+- **Python**: 데이터 처리, AI/ML 모델 개발 및 백엔드 서버 구축
+- **websockets**: 실시간 Binance WebSocket 데이터 수신
+- **pandas**, **NumPy**: 데이터 전처리 및 특성 추출
+- **scikit-learn**: K-Means 클러스터링 모델 구현
+- **xgboost**: 분류 모델 구현
+- **FastAPI**: 백엔드 API 서버 구축 (비동기 통신, WebSocket 연동)
+- **Docker / Docker Compose**: 애플리케이션 컨테이너화 및 손쉬운 배포/관리
+- **AWS EC2**: 클라우드 서버 환경
+- **Nginx**: 리버스 프록시 및 HTTPS 보안
+
+---
