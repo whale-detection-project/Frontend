@@ -1,10 +1,21 @@
 'use client';
 
 import { Api } from '@/api/generated/wt-backend-api';
+
 import { Dropdown, DropdownOption } from '@/components/ui/dropdown';
-import { NotificationItem, NotificationSkeleton } from '@/components/ui/notification-item';
+
+import {
+  NotificationItem,
+  NotificationSkeleton,
+  getSeverity,
+} from '@/components/ui/notification-item';
+
+import { BtcIcon } from '@/components/ui/btc-icon';
+
 import { AlertTriangle, BarChart, History, Info, Siren, Zap } from 'lucide-react';
-import { useEffect, useState } from 'react';
+
+import { ReactNode, useEffect, useState } from 'react';
+
 import {
   BarChart as RechartsBarChart,
   Bar,
@@ -29,13 +40,15 @@ interface LogEntry {
   max_output_ratio: number;
   fee_per_max_ratio: number;
   max_input_ratio: number;
+  max_input_address?: string;
+  max_output_address?: string;
 }
 
 // 실시간 알림 데이터 타입 정의
 interface Notification {
   id: string;
   type: string;
-  title: string;
+  title: ReactNode;
   message: string;
   timestamp: string;
   isRead: boolean;
@@ -48,6 +61,8 @@ interface Notification {
   max_output_ratio?: number;
   fee_per_max_ratio?: number;
   max_input_ratio?: number;
+  max_input_address?: string;
+  max_output_address?: string;
 }
 
 // 클러스터 데이터 타입
@@ -78,17 +93,11 @@ const CLUSTER_NAMES: { [key: number]: string } = {
   3: '자금 분산형',
 };
 
-const getSeverity = (btc: number): 'high' | 'medium' | 'low' => {
-  if (btc >= 1000) return 'high';
-  if (btc >= 100) return 'medium';
-  return 'low';
-};
-
-const filterOptions: DropdownOption<'all' | 100 | 500 | 1000>[] = [
+const filterOptions: DropdownOption<'all' | '200-499' | '500-999' | '1000+'>[] = [
   { value: 'all', label: '전체 보기' },
-  { value: 100, label: '100+ BTC' },
-  { value: 500, label: '500+ BTC' },
-  { value: 1000, label: '1000+ BTC' },
+  { value: '200-499', label: '200 ~ 499 BTC' },
+  { value: '500-999', label: '500 ~ 999 BTC' },
+  { value: '1000+', label: '1000+ BTC' },
 ];
 
 export default function Home() {
@@ -97,7 +106,7 @@ export default function Home() {
   const [totalDetections, setTotalDetections] = useState(0);
   const [initialLoading, setInitialLoading] = useState(true);
   const [allNotifications, setAllNotifications] = useState<Notification[]>([]);
-  const [filterValue, setFilterValue] = useState<'all' | 100 | 500 | 1000>(1000);
+  const [filterValue, setFilterValue] = useState<'all' | '200-499' | '500-999' | '1000+'>('1000+');
   const [clusterCounts, setClusterCounts] = useState<ClusterData[]>([]);
   const [analysisCount, setAnalysisCount] = useState(0);
 
@@ -113,7 +122,18 @@ export default function Home() {
             return {
               id: `${log.timestamp}-${index}`,
               type: 'anomaly',
-              title: `대규모 거래 감지`,
+
+              title: (
+                <div className="flex items-center gap-2">
+                  <span>대규모 거래 감지</span>
+
+                  <span className="font-mono text-muted-foreground">
+                    ({log.total_input_value.toFixed(2)}
+                    <BtcIcon className="inline-block w-4 h-4 ml-1" />)
+                  </span>
+                </div>
+              ),
+
               message: `${log.total_input_value.toFixed(2)} BTC가 이동했습니다.`,
               timestamp: new Date(log.timestamp).toLocaleString('ko-KR'),
               isRead: true,
@@ -126,6 +146,8 @@ export default function Home() {
               max_output_ratio: log.max_output_ratio,
               fee_per_max_ratio: log.fee_per_max_ratio,
               max_input_ratio: log.max_input_ratio,
+              max_input_address: log.max_input_address,
+              max_output_address: log.max_output_address,
             };
           });
 
@@ -151,12 +173,20 @@ export default function Home() {
   useEffect(() => {
     if (initialLoading) return; // 초기 데이터 로딩 전에는 실행 방지
 
-    const filteredLogs =
-      filterValue === 'all'
-        ? allNotifications
-        : allNotifications.filter(
-            (n) => n.total_input_value && n.total_input_value >= Number(filterValue),
-          );
+    const filteredLogs = allNotifications.filter((n) => {
+      if (filterValue === 'all') return true;
+      if (!n.total_input_value) return false;
+      switch (filterValue) {
+        case '200-499':
+          return n.total_input_value >= 200 && n.total_input_value < 500;
+        case '500-999':
+          return n.total_input_value >= 500 && n.total_input_value < 1000;
+        case '1000+':
+          return n.total_input_value >= 1000;
+        default:
+          return true;
+      }
+    });
 
     setNotifications(filteredLogs);
     setAnalysisCount(filteredLogs.length);
@@ -254,7 +284,6 @@ export default function Home() {
           </div>
         </div>
 
-        {/* AI Analysis Section */}
         <div className="mt-16">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
             <StatCard
