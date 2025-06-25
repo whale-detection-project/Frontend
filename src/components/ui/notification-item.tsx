@@ -12,8 +12,9 @@ import {
   Focus,
   Receipt,
 } from 'lucide-react';
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { Modal } from './modal';
+import axios from 'axios';
 
 // 알림 데이터 타입
 interface Notification {
@@ -25,8 +26,8 @@ interface Notification {
   isRead: boolean;
   severity: 'high' | 'medium' | 'low';
   coin?: string;
-  predictedCluster?: number;
-  btcValue?: number;
+  predicted_cluster?: number;
+  total_input_value?: number;
   input_count?: number;
   output_count?: number;
   max_output_ratio?: number;
@@ -107,8 +108,16 @@ const getBitcoinHolderType = (btc: number): string => {
 };
 
 export function NotificationItem({ notification }: NotificationItemProps) {
-  const { type, title, message, timestamp, severity, coin, predictedCluster, btcValue } =
-    notification;
+  const {
+    type,
+    title,
+    message,
+    timestamp,
+    severity,
+    coin,
+    predicted_cluster,
+    total_input_value: btcValue,
+  } = notification;
 
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -176,8 +185,8 @@ export function NotificationItem({ notification }: NotificationItemProps) {
                   {coin && <span className={coinTagClasses}>{coin}</span>}
                   {holderType && <span className={holderTypeTagClasses}>{holderType}</span>}
                   <span className={severityTagClasses}>{getSeverityText(severity)}</span>
-                  {predictedCluster !== undefined && (
-                    <span className={clusterTagClasses}>{getClusterType(predictedCluster)}</span>
+                  {predicted_cluster !== undefined && (
+                    <span className={clusterTagClasses}>{getClusterType(predicted_cluster)}</span>
                   )}
                 </div>
               </div>
@@ -296,33 +305,59 @@ function AnalysisItem({
 }
 
 function TransactionDetail({ notification }: { notification: Notification }) {
+  const [btcPrice, setBtcPrice] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchBtcPrice = async () => {
+      try {
+        const response = await axios.get(
+          'https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT',
+        );
+        const data = response.data;
+        if (data.price) {
+          setBtcPrice(parseFloat(data.price));
+        }
+      } catch (error) {
+        console.error('Error fetching Bitcoin price from Binance:', error);
+      }
+    };
+
+    fetchBtcPrice();
+  }, []);
+
   const {
-    predictedCluster,
+    predicted_cluster,
+    total_input_value,
     btcValue,
     input_count,
     output_count,
     max_output_ratio,
     fee_per_max_ratio,
     max_input_ratio,
-  } = notification;
+    fee,
+  } = notification as Notification & { btcValue?: number; fee?: number };
 
-  const clusterType = predictedCluster !== undefined ? getClusterType(predictedCluster) : 'N/A';
-  const feeRatio = fee_per_max_ratio || 0;
-  const satoshiValue = (feeRatio * 1e8).toFixed(2);
+  const currentBtcValue = total_input_value ?? btcValue ?? 0;
+
+  const clusterType = predicted_cluster !== undefined ? getClusterType(predicted_cluster) : 'N/A';
+
+  const totalFeeInBtc = fee !== undefined ? fee : currentBtcValue * (fee_per_max_ratio || 0);
+
+  const totalFeeInSatoshiNumber = totalFeeInBtc * 1e8;
 
   const analysisItems = [
     {
       icon: <Shapes className="w-5 h-5" />,
       title: '거래 패턴 (AI 클러스터링)',
       value: <span className="text-blue-600 dark:text-blue-400">{clusterType}</span>,
-      description: getClusterDescription(predictedCluster),
+      description: getClusterDescription(predicted_cluster),
     },
     {
       icon: <CircleDollarSign className="w-5 h-5" />,
       title: '총 거래 규모',
       value: (
         <span className="text-green-600 dark:text-green-400">
-          {(btcValue || 0).toLocaleString('en-US', {
+          {(currentBtcValue || 0).toLocaleString('en-US', {
             maximumFractionDigits: 2,
           })}{' '}
           BTC
@@ -369,17 +404,38 @@ function TransactionDetail({ notification }: { notification: Notification }) {
     },
     {
       icon: <Receipt className="w-5 h-5" />,
-      title: '수수료 비율',
+      title: '총 거래 수수료',
       value: (
-        <span className="font-mono text-yellow-600 dark:text-yellow-500">
-          {feeRatio.toExponential(2)}
-        </span>
+        <div className="flex flex-col items-start font-mono">
+          {btcPrice !== null ? (
+            <>
+              <span className="text-xl md:text-2xl text-yellow-600 dark:text-yellow-500 font-bold">
+                $
+                {(totalFeeInBtc * btcPrice).toLocaleString('en-US', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </span>
+              <span className="text-sm text-muted-foreground mt-1">
+                (
+                {totalFeeInSatoshiNumber.toLocaleString('en-US', {
+                  maximumFractionDigits: 0,
+                })}{' '}
+                사토시)
+              </span>
+            </>
+          ) : (
+            <div className="space-y-1">
+              <div className="h-8 bg-muted dark:bg-secondary rounded-lg w-24 animate-pulse"></div>
+              <div className="h-5 bg-muted dark:bg-secondary rounded-lg w-20 animate-pulse"></div>
+            </div>
+          )}
+        </div>
       ),
       description: (
         <span>
-          거래 금액 1 BTC당 약 <strong className="text-foreground">{satoshiValue} 사토시</strong>의
-          수수료가 발생했음을 의미합니다 (1 BTC = 10<sup>8</sup> Satoshi).
-          <br />이 값이 매우 낮으면 내부 자금 이동일 가능성이 높습니다.
+          거래에 사용된 총 수수료의 현재 달러 가치입니다. 사토시는 비트코인의 가장 작은 단위입니다
+          (1 BTC = 10<sup>8</sup> 사토시).
         </span>
       ),
     },
