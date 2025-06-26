@@ -480,15 +480,40 @@ function TransactionDetail({ notification }: { notification: Notification }) {
     },
     {
       icon: <Receipt className="w-6 h-6 text-red-500" />,
-      title: '총 거래 수수료 (Satoshi)',
+      title: '총 거래 수수료',
       value: (
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-lg font-medium">
-            {(currentBtcValue * (fee_per_max_ratio || 0) * 1e8).toLocaleString(undefined, {
-              maximumFractionDigits: 0,
-            })}
-          </span>
-          <span className="text-sm text-muted-foreground">Sats</span>
+        <div className="flex items-baseline gap-2">
+          {isLoadingPrice ? (
+            <div className="h-6 w-32 bg-muted rounded animate-pulse" />
+          ) : btcPrice ? (
+            <>
+              <span className="text-lg font-medium">
+                {`$${(currentBtcValue * (fee_per_max_ratio || 0) * btcPrice).toLocaleString(
+                  'en-US',
+                  {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 4,
+                  },
+                )}`}
+              </span>
+              <span className="text-sm text-muted-foreground">
+                (
+                {(currentBtcValue * (fee_per_max_ratio || 0) * 1e8).toLocaleString(undefined, {
+                  maximumFractionDigits: 0,
+                })}{' '}
+                Sats)
+              </span>
+            </>
+          ) : (
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-lg font-medium">
+                {(currentBtcValue * (fee_per_max_ratio || 0) * 1e8).toLocaleString(undefined, {
+                  maximumFractionDigits: 0,
+                })}
+              </span>
+              <span className="text-sm text-muted-foreground">Sats</span>
+            </div>
+          )}
         </div>
       ),
       description: '사토시는 비트코인의 가장 작은 단위입니다 (1 BTC = 10^8 사토시).',
